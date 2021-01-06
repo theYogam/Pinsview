@@ -196,7 +196,9 @@
                             <textarea rows="4" class="desc form-control" id="new-pin-desc" cols="5" style="font-size: 12px; resize: none;"></textarea>
                         </div>
                         <div class="actions" style="clear: both">
-                            <button type="button" id="save-pin" class="btn btn-success btn-sm pull-right col-sm-offset-2 col-sm-5 col-xs-12" data-dismiss="modal" aria-label="Submit">{% trans 'Submit' %}</button>
+                            <button type="button" id="save-pin" class="btn btn-success btn-sm pull-right col-sm-offset-2 col-sm-5 col-xs-12" data-dismiss="modal" aria-label="Submit">{% trans 'Submit' %}
+                                {% include 'core/snippets/spinner.html' %}
+                            </button>
                             <button type="button" class="btn btn-sm cancel btn-default pull-right col-sm-5 col-xs-12" data-dismiss="modal" aria-label="Close">{% trans 'Cancel' %}</button>
                         </div>
                     </form>
