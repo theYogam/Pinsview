@@ -1,0 +1,231 @@
+@import url('https://fonts.googleapis.com/css?family=Lato:300,400,700|PT+Sans:400,700');
+
+:root {
+    --first-color: #2a3d86;
+    --second-color: #ed5753;
+    --third-color: #f5a42c;
+}
+
+
+body {font-size: 12px; font-family: "Lato", "PT Sans", sans-serif}
+.clear {clear: both;}
+.edge-swipe-overlay { background: rgba(0, 0, 0, .3); display: none; height: 100%; overflow: hidden; position: fixed; top: 0; width: 100%; z-index: 1000;}
+#side-nav.edge-panel-left {background: #fff; left: 0;display: none; max-width: 300px; margin-left: -300px; overflow: auto; position: fixed; height: 100%; padding: 5px 10px 10px 10px; width: 90%; top: 0; z-index: 1001;}
+.edge-panel-left .wrapper {padding: 0 0 120px}
+.edge-panel-left .stage {padding: 0 0 90px; width: 100%}
+.top-edge-panel {border-bottom: 1px solid #eee;float: left;margin: 3px 0;padding-bottom: 13px;width: 100%;}
+.filters {clear: both;float: left;width: 100%;}
+.filters .empty-grid {border: 2px dotted #ddd; background: #f6f6f6; text-align: center}
+section div.header {float: left;font-size: 17px;font-weight: 700;margin-left: 10px;margin-top: 40px;}
+section div.details {margin-left: 16px;}
+.filters ul {float: left;padding-left: 0;}
+.filters li {float: left;list-style-type: none;padding: 7px 0;width: 100%;font-size: 18px;}
+.filters .Pins label.checkbox, .filters .Fibers label.checkbox   {font-size: 18px;float: left;margin: 4px 0  0 24px;padding: 12px 0;width: 100%;}
+.filters label.checkbox .color {float: left; height: 15px; width: 15px; margin: 0 15px}
+section div.details a {color: #636b63}
+.filters li a {float: left;width: 100%;}
+.divider {border-top: 1px solid #eee; float: left; margin: 15px 0; width: 100%}
+
+
+.edge-panel-right {background: #fff; height: 100%;margin-right: -300px;z-index: 20; max-width: 300px; position: fixed; right: 0; width: 90%; overflow: auto; top:0;}
+
+
+
+.has-shade {box-shadow: 1px 1px 9px 4px rgba(0, 0, 0, .1); -moz-box-shadow: 1px 1px 9px 4px -moz-rgba(0, 0, 0, .1); -webkit-box-shadow: 1px 1px 9px 4px rgba(0, 0, 0, .1)}
+.has-menu-shade {box-shadow: 1px 1px 5px 0 rgba(0, 0, 0, .1); -moz-box-shadow: 1px 1px 5px 0  -moz-rgba(0, 0, 0, .1); -webkit-box-shadow: 1px 1px 5px 0 rgba(0, 0, 0, .1)}
+.text-has-shade {text-shadow: 1px 2px 2px rgba(0, 0, 0, .15)}
+.inner-shade {box-shadow: inset 0 1px 3px rgba(0, 0, 0, .15); -moz-box-shadow: inset 0 1px 3px -moz-rgba(0, 0, 0, .15); -webkit-box-shadow: inset 0 1px 3px rgba(0, 0, 0, .15)}
+.hidden {display: none}
+.subtle-shade {box-shadow: 0 1px 2px 0 rgba(0, 0, 0, .15)}
+.subtle-gradient {
+    background-color: #ffffff;
+    background: -moz-linear-gradient(top,  #ffffff 0%, #f6f6f6 47%, #ededed 100%);
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#ffffff), color-stop(47%,#f6f6f6), color-stop(100%,#ededed));
+    background: -webkit-linear-gradient(top,  #ffffff 0%,#f6f6f6 47%,#ededed 100%);
+    background: -o-linear-gradient(top,  #ffffff 0%,#f6f6f6 47%,#ededed 100%);
+    background: -ms-linear-gradient(top,  #ffffff 0%,#f6f6f6 47%,#ededed 100%);
+    background: linear-gradient(to bottom,  #ffffff 0%,#f6f6f6 47%,#ededed 100%);
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#ffffff', endColorstr='#ededed',GradientType=0 );
+}
+
+.ik-hdn, .tpl {display: none}
+h5 {color: #222; font-size: 12px}
+.floating-notice {background-color: #F6FF8C; border: 1px solid #CDD570; border-radius: 2px; color: #484B2B; padding: 9px 24px; position: absolute}
+.floating-notice.failure{border: 1px solid; color:  #F00}
+.floating-notice .action {cursor: pointer; text-decoration: underline}
+#top-notice-ctnr {left: 0; position: fixed; text-align: center; top: 66px; width: 100%; z-index: 100000}
+
+
+.nav {margin: 10px 0 10px 12px;right: 0;position: absolute;text-align: center;z-index: 10;}
+.nav-items {padding: 0; list-style: none}
+.nav-item {display: inline-block;margin: 0 12px;float: left;}
+.nav-item:last-child {margin-right: 0}
+.nav-link, .nav-link:link, .nav-link:visited, .nav-link:active, .submenu-link, .submenu-link:link, .submenu-link:visited, .submenu-link:active {  display: block; position: relative;font-size: 12px; letter-spacing: 1px; cursor: pointer; text-decoration: none; outline: none}
+.nav-link, .nav-link:link, .nav-link:visited, .nav-link:active {color: #fff; font-weight: bold}
+.nav-link::before {content: ""; position: absolute; top: 100%;  left: 0; width: 100%;  height: 3px; background: rgba(0,0,0,0.2); opacity: 0; -webkit-transform: translate(0, 10px); transform: translate(0, 10px); transition: opacity 0.3s ease, transform 0.3s ease}
+.nav .glyphicon.glyphicon-user {color: #888; font-size: 32px; padding-top: 10px; }
+.dropdown {position: relative}
+.dropdown .nav-link {padding-right: 15px; height: 17px; line-height: 17px}
+.dropdown .nav-link::after {content: "";  position:absolute; top: 6px; right: 0; border: 5px solid transparent}
+.submenu {position: absolute;top: 79%;left: -58%;z-index: 100;width: 162px;margin-left: -100px;background: #fff;border-radius: 3px;line-height: 1.46667;margin-top: -5px;box-shadow: 0 0 8px rgba(0,0,0,.3);opacity:0;-webkit-transform: translate(0, 0) scale(.85);transform: translate(0, 0)scale(.85);transition: transform 0.1s ease-out, opacity 0.1s ease-out;pointer-events: none;}
+.submenu::after, .submenu::before {content: ""; position: absolute; bottom: 100%; left: 88%; margin-left: -10px; border: 10px solid transparent;height: 0}
+.submenu::after {border-bottom-color: #fff}
+.submenu::before {margin-left: -13px; border: 13px solid transparent; border-bottom-color: rgba(0,0,0,.1); -webkit-filter:blur(1px); filter:blur(1px)}
+.submenu-items {list-style: none; padding: 10px 0}
+.submenu-item {display: block; text-align: left}
+.submenu-link, .submenu-link:link, .submenu-link:visited, .submenu-link:active {color: #555; padding:3px 20px}
+.submenu-link:hover {text-decoration: underline;}
+.submenu-seperator {height: 0; margin: 12px 10px; border-top: 1px solid #eee}
+.show-submenu .submenu {opacity: 1; -webkit-transform: translate(0, 25px) scale(1); transform: translate(0, 25px) scale(1); pointer-events: auto}
+
+.loading-progress {background: rgba(255, 255, 255, .9); height: 100%; position: absolute;
+    top: 0; left: 0; width: 100%; z-index: 100;}
+
+.modems {float: left; padding: 7px 10px; width: 200px}
+.modems h6 {margin: 0;float: left}
+.modems .result {float: left; margin-left: 10px}
+
+#lightbox {background: rgba(255, 255, 255, .54); height: 100%; position: fixed; left: 0; top: 0; width: 100%; z-index: 10000}
+#lightbox .wrapper {height: 100%; width: 100%}
+#lightbox .dialog .form-group{clear: both;margin-top: 12px;width: 100%;}
+#lightbox .dialog .form-group textarea, #lightbox .dialog .form-group input, #lightbox .dialog .form-group select{font-weight: 700;border: solid 2px #dce4ec;border-radius: 3px;font-size: 12px;resize: none;}
+#lightbox .dialog {background-color: #fff;border: 1px solid var(--second-color);margin: 20% auto;transition: background-color .3s;margin-top: 0;width: 500px;border-radius: 4px;}
+#lightbox .dialog .stage {padding: 0 15px 15px}
+.dialog.confirm button {float: right; width: 95px}
+.modal .actions {margin-bottom: 15px}
+.btn {font-size: 14px;height: 40px;font-weight: 700;}
+.btn-success {
+    background: var(--first-color);  /* fallback for old browsers */
+    background: -webkit-linear-gradient(to right, var(--third-color), var(--second-color), var(--first-color));  /* Chrome 10-25, Safari 5.1-6 */
+    background: linear-gradient(to right, var(--third-color), var(--second-color), var(--first-color)); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+    border: var(--dls19-brand-gradient-radial, radial-gradient(circle at center,
+          #FF385C 0%,
+          #E61E4D 27.5%,
+          #E31C5F 40%,
+          #D70466 57.5%,
+          #BD1E59 75%,
+          #BD1E59 100%
+        )) ;
+}
+.btn-success:hover {
+    background: var(--second-color);
+}
+
+.input-sm {height: 40px!important;}
+/*.dialog .submit {font-size: 14px;float: right; width: 47%; height: 40px; font-weight: 900;}*/
+
+.modal img {float: left; width: 150px}
+.modal .modal-body a {color: #009800;}
+.modal .modal-footer  {border: none; clear: both}
+
+span.icon {background-size: 80% auto; margin-left: 12px; margin-top: 20px}
+#suggestions-for-view {border: 1px solid #ddd; border-top: none; background-color: #FFF; position: fixed; height: 485px;  width: 384px}
+#suggestions-for-view section {clear: both; float: left; height: 156px; border-bottom: solid 1px #ddd; overflow: auto; padding: 2px 2% 3px 2%; width: 96%}
+#suggestions-for-view section div.more {background: #f6f6f6; color: #444; clear: both; float: left; font-size: 12px; height: 21px; margin-top: 132px; margin-left: -2%; padding: 3px 0; position: absolute; text-align: center; width: 100%}
+
+#suggestions-for-view section header {color: #333; float: left; font-size: 12px; font-weight: 700; margin-top: 4px}
+
+#keyword {float: left;width: 70%}
+div#suggestions-for-view section div.result {float: left; width: 100%}
+div#suggestions-for-view section div.result ul {float: left; margin-left: 2%; margin-top: 2px; width: 98%}
+div#suggestions-for-view section div.result ul li {clear: both; display: block; float: left; font-size: 12px; list-style-type: none}
+div#suggestions-for-view section div.result ul li a {float: left; padding: 5px 0; text-decoration: none; text-transform: capitalize; width: 100%}
+
+#suggestions-for-lines {position: absolute; width: 190px; }
+
+div.close {font-size: 17px; padding: 12px; position: absolute}
+div.empty-grid {color: #888; font-size: 12px}
+.radio, .checkbox {font-weight: 300; margin-left: 7px; font-size: 12px;}
+
+.radio input[type="radio"], .radio-inline input[type="radio"], .checkbox input[type="checkbox"], .checkbox-inline input[type="checkbox"] {height: 16px;margin-top: 6px;width: 14px;}
+
+div.tooltip-html-text {}
+div.tooltip-html-text .stage {height: 150px;margin-left: 0; margin-top:8px; overflow: hidden; width: 250px}
+div.tooltip-html-text .stage .slider {height: 150px; width: 510px}
+div.tooltip-html-text .stage .slider div {float: left;height: 150px; width: 250px}
+div.tooltip-html-text div.photo {background-position: center; background-repeat: no-repeat; background-size: 100% auto; height: 150px;margin-left: 8px; width: 250px}
+div.tooltip-html-text .desc {float: left; clear: both; margin: 10px 15px 10px; }
+div.tooltip-html-text  h4 {text-align: center;font-size: 13px; width: 194px;}
+div.tooltip-html-text p {float: left; font-size: 12px;clear: both}
+div.tooltip-html-text span {float: left;font-size: 12px; margin-top: 10px}
+div.tooltip-html-text span.view-img {float: right}
+div.tooltip-html-text span.created, div.tooltip-html-text span.techie {;font-size: 12px; clear: both}
+div.tooltip-html-text span b {float: left}
+div.tooltip-html-text span.resp {float: left;margin-left: 12px; margin-top: 0;}
+div.tooltip-html-text .desc {max-width: 250px}
+#close {color: #666; cursor: default; font-size: 30px; font-weight: 700; position: absolute; right: 30px; top:30px; }
+#close:hover {color: #FFF}
+
+.btn-icon.remove-config, .btn-icon.add-config {cursor: pointer}
+
+.autocomplete-suggestions{background: #fff; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, .15); overflow-x: hidden;}
+.autocomplete-suggestions .autocomplete-suggestion {border-bottom: solid 1px #d9dfd6; cursor: default; padding: 5px;}
+.autocomplete-suggestions .autocomplete-suggestion:last-child {border-bottom: solid 1px transparent}
+.autocomplete-suggestions .autocomplete-suggestion:hover {background: rgba(31, 185, 11, 0.14) }
+
+.icon-bar {background: #666666;display: block;margin-bottom: 5px;width: 25px;height: 3px;border-radius: 1px;}
+ #top-panel {left: 30px; position: fixed; top: 30px;width: 60%; z-index: 500}
+ #toolbox {float: left}
+
+#search-box {background: #fff;border-radius: 3px;cursor: pointer;float: left;padding: 0 15px;}
+.menu-button {display: block;float: left;padding: 11px 15px 3px 0;}
+
+.sr-only {border: 0;position: absolute;width: 1px;height: 1px;margin: -1px;clip: rect(0, 0, 0, 0);padding: 0;overflow: hidden;}
+#navbar-search {background: transparent;border-radius: 3px;box-shadow: none;display: block; float: left; margin-top: 0; margin-bottom: 0; padding-left: 0;  width: 350px;}
+#navbar-search input {background: #fff;border-radius: 3px;border: none;color: #ddd;box-shadow: none;float: right;margin-top: 0;padding-left: 0;padding-right: 28px;width: 100%;}
+#navbar-search input:focus {box-shadow: none}
+#search-box .fa.fa-search {color: #d2d2d2;font-size: 17px;margin: 11px 0 0 328px;position: absolute;}
+
+#toolbox .coords {background: #fff;border-radius: 3px;float: left;margin-left: 12px;width: 225px;padding: 12px 5px;height: 40px;}
+#toolbox .coords .coord {float: left;width: 105px;overflow: hidden;/* padding: 0 3px; */}
+#toolbox .coords .coord span, #toolbox .coords .coord strong  {float: left}
+#lngspan, #latspan {max-width: 77px;}
+#toolbox .action {background: #FFF; border-radius: 25px;float: left; height: 40px; margin-left: 9px;padding: 11px 12px; width: 42px}
+#toolbox .action span  {font-size: 22px;color: #666666;}
+#toolbox .action .badge  {background: #f10002; border-radius: 4px; font: 400 15px Roboto, Arial, sans-serif;margin: -7px; padding: 4px;}
+#ld-filter {background: #fff; border-radius: 4px; padding-top: 10px;}
+#ld-tools-content {position: fixed; right: 0; top: 100px}
+
+#top-panel {left: 10px; padding: 10px 0 0px; position: fixed; top: 0;transition: top .3s; -webkit-transition: top .3s; width: 80%; z-index: 500}
+#top-panel.show-top-panel {top: 0}
+#asset-name {color: #424141;font-size: 20px;font-weight: 700;}
+.edge-panel-right ul{margin: 0; width: 100%}
+.edge-panel-right .filters li {border-bottom: solid 1px #F1F1F1;color: #333;padding: 11px 0;width: 100%;}
+div.fiber-tooltip-html-text h4 {font-size: 13px}
+div.tooltip-html-text span {font-size: 12px; margin-top: 10px;}
+li.event .type {float: left; width: 100%;}
+li.event .created {float: right; font-size: 10px; margin-top: -20px}
+
+#lightbox .dialog.event-summary {margin-left: -280px; margin-top: 5%; padding: 10px 20px; width: 560px;}
+#lightbox .dialog.event-summary div {clear: both; float: left;font-size: 14px; padding: 10px 0}
+#lightbox .dialog.event-summary div strong {float: left; width: 100px}
+#lightbox .dialog.event-summary div span {margin-left: 10px}
+#lightbox .dialog.event-summary .close:hover {color: #0e721f}
+h2.modal-title {color: #333;font-size: 21px;font-weight: 700;padding: 20px 10px;text-align: center;width: 100%;}
+
+#lightbox table .pin-name {color: #f10002; cursor: pointer; font-weight: 700; font-size: 13px}
+.gm-ui-hover-effect {cursor: pointer}
+.custom-config {padding: 8px 0; margin: 0}
+.custom-config.first {padding: 30px 0 0}
+#configs .action {border-top: solid 1px #eee; float: left; margin-top: 20px; padding: 20px 0 0; width: 100%}
+.custom-config .no-border {border: none; box-shadow: none}
+.resize-form-group {padding: 2px 0;}
+#ld-toolbox {display: none}
+
+
+@media (max-width: 767px) {
+    #top-panel {width: 96%;left: 2%;padding-top: 5px;}
+    #search-box {width: 100%;position: absolute; display: none}
+    .nav {top: -4px; z-index: 1000}
+    .nav.disclose {z-index: 1}
+    .nav .nav-item {width: 40px; }
+    .nav .nav-item a {margin-top: 7px; display: block}
+    .nav .nav-item a i {color: #666; font-size: 22px}
+    .nav-item:last-child a {padding-right: 12px}
+    #toolbox .action.add-coords {padding: 8px 7px;height: 28px;width: 28px;margin-top: 5px;}
+    #toolbox .action.add-coords #add-coords {font-size: 16px;line-height: 4px;}
+    #navbar-search {padding-right: 0; margin-left: 0; width: 100%}
+    #navbar-search input {padding-right: 0; padding-left: 41px; font-size: 14px; font-weight: 700;}
+    #navbar-search .glyphicon.glyphicon-menu-left {position: absolute;top: 2px;font-weight: 700;font-size: 22px;line-height: 42px;width: 40px;height: 40px;color: #888;}
+    .modal .actions .btn {margin-top: 15px}
+}

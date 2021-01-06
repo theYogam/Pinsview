@@ -1,0 +1,47 @@
+{% load i18n humanize static cache %}
+<div class="edge-panel-left-container">
+    <div id="side-nav" class="edge-panel-left">
+        <div class="wrapper">
+            <div id="filter" class="">
+                <div class="header top">
+                    <a class="navbar-brand" href="{{ service.url }}" style=" height: inherit; width: 100%">
+                        <img src="{% static 'pinsview/img/Logo PinsView-02.png' %}" width="100%">
+                    </a>
+                    <div class="clearfix"></div>
+                </div>
+                <h2 class="col-sm-12" style="font-size: 30px; font-weight: 700; margin: 45px auto; float: none">{{ service.project_name }}</h2>
+                <div class="filters" id="filtered">
+                    {% if cities|length > 1 %}
+                    <section class="cities col-sm-12" style="float: none; margin: auto">
+                        <h3 style="margin-top: 0; font-size: 21px;">{% trans 'Cities' %}</h3>
+                        <div class="details">
+                            <ul>
+                                {% for city in cities %}
+                                    <li class="city">
+                                        {% if request.user.is_superuser %}
+                                            <a href="#" class="criterion" data-city="{{ city.id }}"  data-lat='{{ city.latitude }}' data-lng="{{ city.longitude }}">{{ city.name }}</a>
+                                        {% else %}
+                                            <a href="#" class="criterion" data-lat='{{ city.latitude }}' data-lng="{{ city.longitude }}">{{ city.name }}</a>
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </section>
+                    {% endif %}
+                    <section class="Pins col-sm-12" style="float: none; margin: auto">
+                        <h3>{% trans 'Categories' %}</h3>
+                        <div class="details">
+                            {% for category in categories %}
+                                <label class="checkbox">
+                                    <input data-categoryid="{{ category.id }}" checked type="checkbox" class="criterion pincategory" value="{{ category.id }}">{{ category.name }}
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </section>
+                    <section id="dist-reload"></section>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

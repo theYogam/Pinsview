@@ -1,0 +1,73 @@
+{% load i18n static %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="">
+        <meta name="author" content="">
+
+        <link rel='stylesheet' href="{% static 'ikwen/font-awesome/css/font-awesome.min.css' %}" />
+{#        <link rel='stylesheet' href="{% static 'ikwen/css/base.css' %}" />#}
+
+        <link rel="stylesheet" type="text/css" href="{% static 'ikwen/css/bootstrap.min.css' %}?version=3.2">
+{#        <link rel="stylesheet" type="text/css" href="{% static 'council/css/base.css' %}?version=3.1">#}
+        <link rel="stylesheet" type="text/css" href="{% static 'pinsview/css/map.css' %}?version=04.01.2021-19.46">
+        <title>{{ service.project_name }} - Pins</title>
+
+        <!-- Bootstrap Core CSS -->
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <script src="{% static 'ikwen/js/jquery-1.12.4.min.js' %}"></script>
+{#        <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBD5bSEUzqMvAeOCnEctZ52G1Qt-tFUP-s&libraries=geometry&callback=initialize"></script>#}
+
+        <script async defer type="text/javascript" src="https://maps.google.com/maps/api/js?key=AIzaSyBEGU-6-JeJW9oa5D8WSIsFXK-aN9CwHqI"></script>
+
+        <script type="text/javascript" src="{% static 'ikwen/js/jquery.autocomplete.min.js' %}"></script>
+{#        <script src="{% static 'council/ajaxuploader/js/fileuploader.js' %}" ></script>#}
+        <!--[if lt IE 9]>
+            <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+            <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+    </head>
+    <body>
+        <div id="map_canvas" style="cursor: default; width: 100%"></div>
+        {% include 'pinsview/snippets/top-panel.html' %}
+        {% include 'pinsview/snippets/ligthboxes.html' %}
+        {% include 'pinsview/snippets/edge_panel_left.html' %}
+        {% include 'pinsview/snippets/edge_panel_right.html' %}
+        <div class="edge-swipe-overlay"></div>
+
+        <div class="loading-progress">
+            <div style="margin: 20% auto; width: 60%">
+                <p style="text-align: center">
+                    {% trans 'Loading. Please wait ...' %}
+                    <strong class="progress-rate" style="color: #003192">0%</strong>
+                </p>
+            </div>
+        </div>
+        <div id="pin-here" style="display: none">
+            <div class="content-string">
+                <h4 class="title text-center" style="margin-top: 0px; padding-bottom: 0.5vh;"> {% trans "Set position" %}</h4>
+                <div class="content">'
+                    <p>{% trans "Click Pin here if you want to add a marker in this position" %}</p>
+                    <div class="text-center">
+                        <button class="btn btn-success text-center show-modal-new-pin" style="min-width: 150px; margin-top:1vh;">{% trans "Pin here" %}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% include 'pinsview/snippets/tooltips.html' %}
+
+        <script src="{% static 'ikwen/js/bootstrap.min.js' %}"></script>
+        <script src="{% static 'ikwen/hammerjs/hammer.min.js' %}"></script>
+        <script src="{% static 'ikwen/hammerjs/jquery.hammer.js' %}"></script>
+        <script src="{% static 'ikwen/js/ikwen-util.js' %}"></script>
+
+{#        <!-- Menu Toggle Script -->#}
+        {% include 'pinsview/snippets/home_page_js.html' %}
+    </body>
+</html>
+

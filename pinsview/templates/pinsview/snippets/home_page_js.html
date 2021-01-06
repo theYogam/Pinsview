@@ -1,0 +1,2122 @@
+{% load i18n static humanize %}
+<script>
+    $("#menu-toggle").click(function(e) {
+        e.preventDefault();
+        $("#wrapper").toggleClass("toggled");
+    });
+
+    (function() {
+        var markerCount = 0, map, city, zone, operator, pinStatus, pinCategory, searchVal ='',
+            lastMarkerId, clickListener, liveDrawing, measuring, appLoaded = false,
+            PROSPECT_ICON = "{% static 'pinsview/img/prospect.png' %}",
+            OFFLINE_PON_ICON = "{% static 'pinsview/img/red-dot.png' %}",
+            OFFLINE_DOCSIS_ICON = "{% static 'pinsview/img/red-triangle.png' %}",
+            length_features = parseInt("{{ pin_list|length }}"),
+            features = new Array(length_features),
+            length_icons = parseInt("{{ category_list|length }}"),
+            icons = new Array(length_icons),
+            key_dict, here, hereMarker;
+
+        var mapsIntervalId = setInterval(function() {
+            try {
+                infowindow = new google.maps.InfoWindow();
+                clearInterval(mapsIntervalId);
+                var current_user_lat = "{{ user_city.latitude }}",
+                    current_user_lng = "{{ user_city.longitude }}";
+                var centerCoords = new google.maps.LatLng(current_user_lat, current_user_lng);
+                var options = {
+                    center: centerCoords, zoom: 13,
+                    mapTypeId: google.maps.MapTypeId.ROADMAP,
+                    fullscreenControl : false,
+                    mapTypeControlOptions: {
+                        style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+                        position: google.maps.ControlPosition.BOTTOM_LEFT
+                    }
+                };
+                if ($(window).width() < 992) {
+                    options['mapTypeControl'] = false;
+                    options['streetViewControl'] = false;
+                    options['zoomControl'] = false;
+                }
+                var map_canvas = document.getElementById('map_canvas');
+                map = new google.maps.Map(map_canvas, options);
+{#                checkDataIntegrity();#}
+                var boundsIntervalId = setInterval(function() {
+                    if (map.getBounds()) {
+                        clearInterval(boundsIntervalId);
+                        console.log("Clearing boundsIntervalId. Starts loading assets");
+                        loadAllEquipments();
+                    }
+                }, 1000);
+
+                {% if pinsview_config.allow_manual_add_pin %}
+                // Add new pin to the map directly
+                var dbClickListener = google.maps.event.addListener(map,'dblclick',function(event) {
+                    var lat = event.latLng.lat() , lng = event.latLng.lng();
+                    addMarkerToMap(lat, lng, '', 10, "{% static 'pinsview/img/logo-pinsview-32x32.png' %}");
+                    document.getElementById('latlongclicked').value = lat + ';' + lng;
+                    $('form#equipment input.latitude').val(lat);
+                    $('form#equipment input.longitude').val(lng);
+                    $('form#equipment input.origin').val('home');
+                    $('#modal-new-pin').modal('show');
+                });
+                {% endif %}
+
+                // View mouse current position on the map
+                google.maps.event.addListener(map,'mousemove',function(event) {
+                    document.getElementById('latspan').innerHTML = Math.round(event.latLng.lat() * 1000000000) / 1000000000;
+                    document.getElementById('lngspan').innerHTML = Math.round(event.latLng.lng() * 1000000000) / 1000000000;
+                });
+                google.maps.event.addListener(map,'zoom_changed',function(event) {
+                    console.log('Zoom: ' + map.getZoom());
+                    deletePins();
+                    loadAllEquipments();
+                });
+                google.maps.event.addListener(map,'dragend',function(event) {
+                    deletePins();
+                    loadAllEquipments();
+                });
+                DeleteMenu.prototype = new google.maps.OverlayView();
+            } catch (e) {}
+        }, 1000);
+
+        // Here is the application Initialisation zone; We will manage UI viewer; and default configs
+        var current_user = "{{ request.user.username }}",
+        last_user = localStorage.getItem("last_user");
+        if (current_user !== last_user) {
+            localStorage.setItem("last_user", current_user);
+            localStorage.removeItem("fiberlines");
+            localStorage.removeItem("pins");
+            localStorage.removeItem("last_log_updated_id");
+        }
+
+        ikwen.index = -1;
+        ikwen.fiberData = null;
+        ikwen.fiberListIds = [];
+        ikwen.pinListIds = [];
+        ikwen.eventData = [];
+        ikwen.polylines = [];
+        ikwen.eventDataCount = 0;
+        ikwen.markerList = [];
+        ikwen.currentMarkerListOnTheMap = [];
+        ikwen.currentMarkerDataListOnTheMap = [];
+        ikwen.offlineMarkerList = [];
+        ikwen.startDragPosition = {};
+        var lastFiberId = "{{ last_fiber_id }}",
+            lastPinId = "{{ last_pin_id }}";
+
+        // Select if the user just want the equipments viewer interface or the the live drawing one
+        $('span#live-drawing').click(function (e) {
+            $('button#save-fiber-modification').hide()
+            $('.back-to-equipment').show()
+            deleteFiberline();
+            initLiveDrawingUI();
+            liveDrawing = true;
+        });
+         $('span#view-all-equipments').click(function (e) {
+             $('button#save-fiber-modification').hide();
+             $('#current-polyline-length').hide();
+             deletePins();
+             deleteFiberline();
+             prepareDefaultUI();
+             loadAllEquipments(true);
+             checkDataIntegrity();
+             measuring = false;
+        });
+        $('#back-to-equipment').click(function (e) {
+            $('button#save-fiber-modification').hide();
+            $(this).parent('.action').hide()
+
+            $('#toolbox .live-drawing').show();
+            $('#toolbox .measure-line').show();
+            $('#toolbox .erase').show();
+            $('#current-polyline-length').hide();
+            deletePins();
+            deleteFiberline();
+            liveDrawing = false;
+            loadAllEquipments(true);
+            checkDataIntegrity();
+            $('div#ld-tools-content').fadeOut("slow", function (e) {
+                $('#equipement-viewer').show().removeClass('ik-hdn')
+            }).hide()
+        });
+        $('form#line-search input#line-keyword').autocomplete({
+            serviceUrl: "{% url 'pinsview:find_lines' %}",
+            //minChars: 2,
+            appendTo: '#suggestions-for-lines',
+            onSelect: function(suggestion) {
+                var data = suggestion.value.split(' ')[0];
+                $('form#line-search input:hidden').val(data);
+{#                    $('#location').submit()#}
+                $('div#suggestions-for-lines div.autocomplete-suggestions').css('width','340px');
+                $('div#suggestions-for-lines div.autocomplete-suggestions').css('overflow-x','hidden')
+            }
+        });
+        $('button#done').click(function(){
+            activateLineOptimizing()
+        });
+        {#var latitude, longitude, pinId, htmlText,iconImg;#}
+
+        $(document).mousemove(function(e) {
+            let cornerX = e.pageX, cornerY = e.pageY;
+            if (cornerX >= 0 && cornerX <= 870){
+                if (cornerY <= 1){
+                    $('#top-panel').addClass('show-top-panel');
+                    return
+                }
+                if (cornerY > 1 && cornerY <= 72) {
+                    $('#top-panel').addClass('show-top-panel')
+                }else $('#top-panel').removeClass('show-top-panel')
+            }else $('#top-panel').removeClass('show-top-panel')
+        });
+
+        {#    Home page for fibelines and network equipments viewer. here there are several function #}
+        {#    Transform theses two loading part into callable function; cuz they are needed elsewhere #}
+         function notifyLoadFinished() {
+            blocksLoaded++;
+            let rate = Math.round(blocksLoaded / totalBlocks * 100) + '%';
+            $('.progress-rate').text(rate);
+            if (blocksLoaded >= totalBlocks) {
+                $('.loading-progress').hide();
+            }
+        }
+
+        function loadAllEquipments(drawFibers) {
+             if (liveDrawing || measuring) return;
+             var i, j,
+                localFibers = localStorage.getItem("fiberlines"),
+                localPins = localStorage.getItem("pins"),
+                offlinePins = localStorage.getItem("offlinePins"),
+                fiberBlocks = {{ fiber_blocks }},
+                pinBlocks = {{ pin_blocks }},
+                loadFromLS = false;
+                console.log(loadFromLS);
+
+            if (pinBlocks === 0) {
+                $('.loading-progress').hide()
+                return;
+            }
+
+            if (localPins) {
+                try {
+                    localPins = JSON.parse(localPins);
+                    loadFromLS = true;
+                } catch (e) {
+                    console.log("Inconsistent data in LocalStorage. Will reload new data.")
+                }
+            }
+            if (loadFromLS) {
+                console.log(loadFromLS)
+                console.log("Consistent pin data in LocalStorage with zoom property. No reload");
+                ikwen.fiberData = localFibers;
+                if (drawFibers) drawPoly(localFibers);
+
+                if (map.getZoom() >= 13) {
+                    for (i=0; i<localPins.length; i++) {
+                        var d = localPins[i];
+                        addMarkerToMap(d.lat, d.lng, d.id, d.zoom, d.icon, map.getBounds());
+                    }
+                    try {
+                        offlinePins = JSON.parse(offlinePins);
+                        console.log(offlinePins.length);
+                    } catch(e) {
+                        offlinePins = [];
+                    }
+                    for (i=0; i<offlinePins.length; i++) {
+                        var d = offlinePins[i];
+                        if (d.category === "modem pon")
+                            addMarkerToMap(d.lat, d.lng, d.id, d.zoom, OFFLINE_PON_ICON, map.getBounds());
+                        else
+                            addMarkerToMap(d.lat, d.lng, d.id, d.zoom, OFFLINE_DOCSIS_ICON, map.getBounds());
+                    }
+                    $('#notifications .badge').text(offlinePins.length)
+                }
+                $('.loading-progress').hide();
+
+                try {
+                    lastPinId = localPins[0].id;
+                    for (i=0; i<localPins.length; i++) {
+                        currentId = localPins[i].id;
+                        if (currentId > lastPinId) lastPinId = currentId
+                    }
+                    console.log("Last pin ID: " + lastPinId);
+                } catch (e) {}
+                if (!appLoaded) {
+                    appLoaded = true;
+                    /*
+                    setInterval(grabOfflinePins, 300000);*/
+                    let delay = 60000;
+                    {% if settings.DEBUG %}
+                        delay = 5000;
+                    {% endif %}
+                    setInterval(function () {
+                        checkNewAsset();
+                        //updateLines()
+                    }, delay);
+                }
+                {% if request.GET.lat and request.GET.lng %}
+                    let prospectLat = "{{ request.GET.lat }}",
+                        prospectLng = "{{ request.GET.lng }}",
+                        prospectId = "{{ request.GET.pin_id }}";
+                    let marker = addMarkerToMap(prospectLat, prospectLng, prospectId, '', PROSPECT_ICON, '', true);
+                    marker.setAnimation(google.maps.Animation.BOUNCE);
+                {% endif %}
+                return
+            }
+
+
+            var blocksLoaded = 0,
+                localFiberData,
+                localPinData,
+                totalBlocks = pinBlocks;
+            $('.progress-rate').text('0 %');
+            for (i=0; i<fiberBlocks; i++) {
+                $.getJSON('{% url 'pinsview:grab_fibers' %}', {start: i * 50}, function(data) {
+                    if (data.length > 0) {
+                        if (localFiberData && localFiberData.length > 0) {
+                            var end = localFiberData.length - 1;
+                            var t1 = localFiberData.substr(0, end), t2 = JSON.stringify(data).substring(1);
+                            localFiberData = t1 + ',' + t2;
+                        } else
+                            localFiberData = JSON.stringify(data);
+                        localStorage.setItem("fiberlines", localFiberData);
+                        drawPoly(data);
+
+                        blocksLoaded++;
+                        var rate = Math.round(blocksLoaded / totalBlocks * 100) + '%';
+                        $('.progress-rate').text(rate);
+                        if (blocksLoaded >= totalBlocks) {
+                            $('.loading-progress').hide();
+                        }
+                    }
+                });
+            }
+
+            for (i=0; i<pinBlocks; i++) {
+                $.getJSON('{% url 'pinsview:grab_pins' %}', {start: i * 50}, function(data) {
+                    if (localPinData && localPinData.length > 0) {
+                        let end = localPinData.length - 1;
+                        localPinData = localPinData.substr(0, end) + ',' + JSON.stringify(data).substring(1);
+                    } else
+                        localPinData = JSON.stringify(data);
+                    localStorage.setItem("pins",localPinData);
+                    for (j=0; j<data.length; j++) {
+                        let d = data[j];
+                        addMarkerToMap(d.lat, d.lng, d.id, d.zoom, d.icon, map.getBounds());
+                    }
+                    blocksLoaded++;
+                    let rate = Math.round(blocksLoaded / totalBlocks * 100) + '%';
+                    $('.progress-rate').text(rate);
+                    if (blocksLoaded >= totalBlocks) {
+                        $('.loading-progress').hide();
+                    }
+                });
+            }
+
+            {% if request.GET.lat and request.GET.lng %}
+                let prospectLat = "{{ request.GET.lat }}",
+                    prospectLng = "{{ request.GET.lng }}",
+                    prospectId = "{{ request.GET.pin_id }}";
+                let marker = addMarkerToMap(prospectLat, prospectLng, prospectId, '', PROSPECT_ICON, '', true);
+                marker.setAnimation(google.maps.Animation.BOUNCE);
+                setTimeout(function(){marker.setAnimation(null); }, 10000);
+            {% endif %}
+
+            if (blocksLoaded >= totalBlocks) {
+                appLoaded = true;
+                /*
+                setInterval(grabOfflinePins, 300000);
+                setInterval(function() {
+                    checkNewAsset();
+                    updateLines()
+                }, 60000);*/
+            }
+        }
+
+        function grabOfflinePins() {
+            for (let i = 0; i < ikwen.currentMarkerListOnTheMap.length; i++) {
+                let marker = ikwen.currentMarkerListOnTheMap[i];
+                if (marker.icon === OFFLINE_PON_ICON) marker.setMap(null);
+            }
+            $("#offline-pins tbody tr").not(".tpl").remove();
+            $.getJSON('{% url 'pinsview:grab_offline_pins' %}', function(data) {
+                var localOfflinePinData = JSON.stringify(data.pins);
+                localStorage.setItem("offlinePins",localOfflinePinData);
+                var offlinePinList = [],
+                    offlinePins = data.pins;
+                for (j=0; j<offlinePins.length; j++) {
+                    var d = offlinePins[j],
+                    center = {lat: d.lat, lng: d.lng}
+                    offlinePinList.push(center)
+                     var icon = OFFLINE_PON_ICON
+                     if (d.category == 'modem docsis') icon = OFFLINE_DOCSIS_ICON
+                    addMarkerToMap(d.lat, d.lng, d.id, d.zoom, icon, map.getBounds());
+                }
+                $('#docsis .offline').text(data.offline_docsis_modem_count)
+                $('#docsis .total').text(data.total_docsis_modem_count)
+                $('#pon .offline').text(data.offline_pon_modem_count)
+                $('#pon .total').text(data.total_pon_modem_count)
+                $('#notifications .badge').text(offlinePins.length)
+                populateOfflinePins(offlinePins)
+            });
+        }
+
+        $("button#save-pin:not(.processing)").click(function () {
+            let latitude = $('#new-pin-lat').val(),
+                longitude = $('#new-pin-lng').val(),
+                formattedAddress = $('#new-pin-formatted-address').val(),
+                name = $('#new-pin-name').val(),
+                desc = $('#new-pin-desc').val(),
+                category = $('#new-pin-category').val();
+            if (latitude === '' || longitude === '' || category === ''){
+                alert('Incomplete data; recheck again please !');
+                $('#new-pin-desc').focus();
+            } else {
+                savePin(category, latitude, longitude, formattedAddress, name, desc);
+            }
+        });
+
+        // Load Equipments by agent city
+        $('section.cities li.city a').click(function() {
+            if ($(this).hasClass('active')) return;
+            $('section.cities li.city a').removeClass('active');
+            $(this).addClass('active');
+            let lat = $(this).data('lat'), lng = $(this).data('lng'), city_id=$(this).data('city'),
+                myLatLng = new google.maps.LatLng(lat, lng);
+            map.panTo(myLatLng)
+        });
+
+        $('section label.checkbox input').click(function(e) {
+            deleteFiberline();
+            deletePins();
+            let filterParams = getSelectedCriteria();
+            filterEquipments(filterParams);
+            e.stopPropagation()
+        });
+
+        // handle search
+        $('form#search #keyword').keyup(function(){
+            var query = $(this).val();
+            if (query.length < 2) return;
+            var endpoint = "{% url 'pinsview:search' %}";
+            var params = {format: 'json', query: query};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    $('.empty-grid').remove();
+                    var fibers = data.lines;
+                    var pins = data.pins;
+                    var agents = data.agents;
+                    if (fibers.length>0 || pins.length>0 || agents.length>0) $('#suggestions-for-view').fadeIn();
+                    populateFibers(fibers);
+                    populatePins(pins);
+                    populateTechies(agents)
+                }
+            });
+            return false
+             // grabOfflinePins();
+        });
+
+        $(document).on('click', '.notification td.pin-name', function(event) {
+                var lat = $(this).data('lat'),
+                    lng = $(this).data('lng'),
+                    pKey = $(this).data('key'),
+                    zoom = $(this).data('zoom'),
+                    icon = $(this).data('icon'),
+                    coordinates = new google.maps.LatLng(lat, lng);
+                var marker = addMarkerToMap(lat, lng, pKey, zoom, icon, null, true);
+                loadAllEquipments();
+                marker.setAnimation(google.maps.Animation.BOUNCE);
+                setTimeout(function(){marker.setAnimation(null); }, 10000);
+                closeLightbox()
+            return false
+        });
+        $(document).on('click', 'div#suggestions-for-view section div.result ul li', function(event) {
+            var $result = $(this).find('a'),
+                equipmentType = $result.data('type'),
+                pKey = $result.data('key'),
+                name = $result.text(),
+                index = -1;
+
+            if (equipmentType === 'pin') {
+                var lat = $result.data('lat'),
+                    lng = $result.data('lng'),
+                    zoom = $result.data('zoom'),
+                    icon = "{{ media_root }}" + $result.data('icon'),
+                    coordinates = new google.maps.LatLng(lat, lng);
+                {#map.panTo(coordinates);#}
+                {#map.setZoom(zoom);#}
+                {#deletePins();#}
+                var marker = addMarkerToMap(lat, lng, pKey, zoom, icon, null, true);
+                loadAllEquipments();
+                marker.setAnimation(google.maps.Animation.BOUNCE);
+                setTimeout(function(){marker.setAnimation(null); }, 10000);
+                $('div#suggestions-for-view div.close').click()
+            }
+            if (equipmentType === 'fiber') {
+                var polylines = ikwen.polylines;
+                for(var j = 0, len = polylines.length; j < len; j++) {
+                    if (polylines[j].fiberId == pKey) {
+                        index = j;
+                        break;
+                    }
+                }
+                if (index != -1){
+                    var fiberLine =  ikwen.polylines[index],
+                        coordList = fiberLine.getPath().getArray();
+                    if (fiberLine.getPath().getArray().length > 0){
+                        var coords = coordList[0],
+                        plat = coords.lat(),
+                        plng = coords.lng(),
+                        center = new google.maps.LatLng(plat, plng),
+                        lineSymbol = {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 8,
+                            strokeColor: '#393'
+                        };
+                        map.setOptions({zoom: 17});
+                        fiberLine.setOptions({strokeColor: '#00FFaa'});
+                        map.panTo(center);
+                        fiberLine.setOptions({icons: [{icon: lineSymbol, offset: '100%'}],});
+                        animateCircle(fiberLine)
+                    }
+                    else{
+                        $('div#top-notice-ctnr span').html("This optical fiber has not yet been drawed");
+                        $('#top-notice-ctnr').fadeIn().delay(5000);
+                    }
+                }
+                $('div#suggestions-for-view div.close').click()
+            }
+            if (equipmentType ==  'agent') {
+                var username = $(this).find('a').data('agentname');
+                $('#agent-name').fadeIn().attr('data-agentid', pKey ).find('span:first-child').text(name);
+                $('#agent-name').removeClass('ik-hdn').fadeIn();
+                getTechieInstallation(pKey)
+            }
+            // lauch my request
+            return false
+        });
+
+        $('#cancel-agent').click(function() {
+            $('#agent-name').fadeOut().data('agentid', '' ).find('span:first-child').text('')
+        });
+
+        function populateFibers(fibers) {
+            $('ul.fiber li.line').not('.tpl').remove();
+            if (fibers.length == 0) {
+                var $emptyRow = $('<div class="empty-grid" colspan="10">No data found</div>');
+                $emptyRow.insertBefore('ul.fiber li.line.tpl');
+                return
+            }
+            var $list = $('<div></div>');
+            for (var i = 0; i < fibers.length; i++) {
+                var $newRow = $('ul.fiber li.line.tpl').clone().removeClass('tpl');
+                $newRow = applyFiberTemplate($newRow, fibers[i]).show();
+                $list.append($newRow)
+            }
+            $list.children().insertBefore('ul.fiber li.line.tpl')
+        }
+        function applyFiberTemplate($tplRow, fiber) {
+            $tplRow.find('a').attr('data-type', 'fiber');
+            $tplRow.find('a').attr('data-key', fiber.id);
+            $tplRow.find('a').text(fiber.name);
+            return $tplRow
+        }
+        function populateOfflinePins(pins) {
+            $("#offline-pins tbody tr").not(".tpl").remove()
+            if (pins.length == 0) {
+                var $emptyRow = $('<div class="empty-grid" colspan="10">No data found</div>');
+                $emptyRow.insertBefore('ul.pin li.line.tpl');
+                return
+            }
+            var $list = $('<div></div>');
+            for (var i = 0; i < pins.length; i++) {
+                var $newRow = $('#offline-pins tbody tr.tpl').clone().removeClass('tpl');
+                $newRow = applyOfflineTemplate($newRow, pins[i], i).show();
+                $list.append($newRow)
+            }
+            $list.children().insertBefore('#offline-pins tbody tr.tpl')
+        }
+
+        function populatePins(pins) {
+            $('ul.pin li.line').not('.tpl').remove();
+            if (pins.length == 0) {
+                var $emptyRow = $('<div class="empty-grid" colspan="10">No data found</div>');
+                $emptyRow.insertBefore('ul.pin li.line.tpl');
+                return
+            }
+            var $list = $('<div></div>');
+            for (var i = 0; i < pins.length; i++) {
+                var $newRow = $('ul.pin li.line.tpl').clone().removeClass('tpl');
+                $newRow = applyPinTemplate($newRow, pins[i]).show();
+                $list.append($newRow)
+            }
+            $list.children().insertBefore('ul.pin li.line.tpl')
+        }
+        function applyPinTemplate($tplRow, pin) {
+            $tplRow.find('a').data({type: 'pin', key: pin.id, zoom: pin.zoom,
+                lat: pin.latitude, lng: pin.longitude, icon: pin.category.icon});
+            if (pin.client_name && pin.client_code)
+                $tplRow.find('a').text(pin.client_name + " / " + pin.client_code);
+            else $tplRow.find('a').text(pin.name);
+            return $tplRow
+        }
+
+        function populateTechies(agents) {
+            $('ul.agent li.line').not('.tpl').remove();
+            if (agents.length == 0) {
+                var $emptyRow = $('<div class="empty-grid" colspan="10">No data found</div>');
+                $emptyRow.insertBefore('ul.agent li.line.tpl');
+                return
+            }
+            var $list = $('<div></div>');
+            for (var i = 0; i < agents.length; i++) {
+                var $newRow = $('ul.agent li.line.tpl').clone().removeClass('tpl');
+                $newRow = applyTechieTemplate($newRow, agents[i]).show();
+                $list.append($newRow)
+            }
+            $list.children().insertBefore('ul.agent li.line.tpl')
+        }
+        function applyTechieTemplate($tplRow, agent) {
+            var firstName = '';
+            var lastName = '';
+            var finalName = '';
+            if (agent.first_name)
+                finalName += agent.first_name;
+            if (agent.lastName)
+                finalName += agent.lastName;
+            $tplRow.find('a').attr('data-type', 'agent');
+            $tplRow.find('a').attr('data-key', agent.id);
+            $tplRow.find('a').attr('data-agentname', agent.username);
+            if (finalName.length > 0)
+                $tplRow.find('a').text(finalName);
+            else
+                $tplRow.find('a').text( agent.username);
+            return $tplRow
+        }
+        $("span#erase").click(function() {
+            deleteFiberline();
+            deletePins();
+
+            $('div.erase').hide();
+            $('div.view-all-equipments').show();
+            $('.recents-equipments').removeClass('active');
+            $('section#fiber  a').removeClass('active');
+            $('section#pin  a').removeClass('active');
+            $('section#city  a').removeClass('active');
+            return false
+        });
+        $('#suggestions-for-view .close').click(function() {
+            $(this).parent('#suggestions-for-view').hide()
+        });
+
+        $('.close').click(function(){
+            closeLightbox()
+        });
+        $("#add-coords").click(function () {
+            pinCurrentLocation();
+            {#$('#modal-new-coordinates input').val('');#}
+            {#$('#modal-new-coordinates').modal('show');#}
+        });
+
+
+        $("#notifications").click(function () {
+            $('#lightbox .dialog.new-coordinate input').val('');
+            $('#lightbox .dialog.new-coordinate').hide();
+            $('#lightbox .dialog.new-pin').hide();
+            $('#lightbox .dialog.notification').show();
+            $('#lightbox').fadeIn().show()
+        });
+
+
+        $(document).on('click', '.see-event-detail', function(event) {
+            var assetName = $("#asset-name").text(),
+                assetType = $(this).attr('asset-type'),
+                assetTitle = $(this).attr('asset-name'),
+                assetDetail = $(this).attr('asset-detail'),
+                assetTechie = $(this).attr('asset-agent'),
+                assetCreated = $(this).attr('asset-created')
+            $('#lightbox .dialog.new-coordinate input').val('');
+            $('#lightbox .dialog.event-summary').find('.asset span').text(assetName);
+            $('#lightbox .dialog.event-summary').find('.type span').text(assetType);
+            $('#lightbox .dialog.event-summary').find('.title span').text(assetTitle);
+            $('#lightbox .dialog.event-summary').find('.details span').text(assetDetail);
+            $('#lightbox .dialog.event-summary').find('.agent span').text(assetTechie);
+            $('#lightbox .dialog.event-summary').find('.created span').text(assetCreated);
+            $('#lightbox .dialog.event-summary').show();
+            $('#lightbox .dialog').not('.event-summary').each(function () {
+                $(this).hide()
+            });
+            $(this).find('.asset span').text()
+            $('#lightbox').fadeIn().show()
+        })
+{#        $(".see-event-detail").click()#}
+        $('#modal-new-coordinates .submit').click(function () {
+            var rawCoords = $('#modal-new-coordinates input').val();
+            if (rawCoords === ''){
+                $('#modal-new-coordinates .form-group').addClass('has-error');
+                $('#modal-new-coordinates input').focus();
+                return
+            }
+            var coords = rawCoords.split(';');
+            if (coords.length != 2){
+                alert('Respect the format please');
+                $('#modal-new-coordinates input').val('');
+                $('#modal-new-coordinates input').focus();
+                return
+            }
+            var latitude = coords[0];
+            var longitude = coords[1];
+            addMarkerToMap(latitude, longitude, '', 10, "{% static 'pinsview/img/logo-pinsview-32x32.png' %}");
+            var myLatlng = new google.maps.LatLng(latitude, longitude);
+            map.panTo(myLatlng);
+            closeLightbox();
+
+            $('form#equipment input.latitude').val(latitude);
+            $('form#equipment input.longitude').val(longitude);
+            $('form#equipment input.origin').val('home');
+            $("#close").addClass('lastMarkerAdded');
+            $('#modal-new-pin').modal('show');
+        });
+        $('#close').click(function(){
+            closeLightbox();
+            if ($this.hasClass('lastMarkerAdded')) {
+                deleteLastMarker();
+                $("#close").removeClass('lastMarkerAdded')
+            }
+        });
+        $('#lightbox .dialog.new-pin button.cancel').click(function(){
+            deleteLastMarker();
+            closeLightbox()
+        });
+        $('#lightbox .dialog.event-summary .close').click(function(){
+            closeLightbox()
+        });
+
+        $('button.cancel').click(function(){
+            closeLightbox()
+        });
+
+
+
+        $(document).on('click', '.open-config-modal', function(event) {
+            var pk = $(this).parents('.asset').attr('id')
+             openConfigForm(pk)
+        })
+
+
+
+        $('#lightbox').on('click', '.btn-icon.add-config', function () {
+            var i = $('.custom-config').length,
+                $customConfig = $('.custom-config.tpl').clone().removeClass('tpl').addClass('cs' + i);
+            $customConfig.find('.btn-icon.remove-config').data('i', i);
+            $customConfig.insertBefore('.custom-config.tpl');
+            $('.custom-service:not(.tpl)').each(function(i) {
+                $(this).find('input.title').attr('name', 'item' + i);
+                $(this).find('input.config-val').attr('name', 'config' + i);
+            });
+        }).on('click', '.btn-icon.remove-config', function() {
+            var title = $(this).parents('.form-group').find('.title');
+            var i = $(this).data('i');
+            $('.cs' + i).remove();
+            $('.custom-config:not(.tpl)').each(function(i) {
+                $(this).find('input.title').attr('name', 'item' + i);
+                $(this).find('input.config-val').attr('name', 'config' + i);
+            });
+        })
+
+
+        $('form#configs').submit(function () {
+            return false
+        })
+        $("#save-config").click(function (e) {
+            var asset_id = $('form#configs').attr('asset-pk'),
+                configs = {asset_id: asset_id, details: {}},
+                key, val;
+            $('.custom-config:not(.tpl)').each(function() {
+                key = $(this).find('input.title').val();
+                val = $(this).find('input.config-val').val();
+                if(key!=='' && val!=='') configs.details[key] = val;
+            });
+            saveAssetConfig(configs)
+            return false
+        })
+
+
+        function saveAssetConfig(configs) {
+            $.ajax({
+                url: 'save_asset_config',
+                type: 'post',
+                contentType: 'application/json',
+                data: JSON.stringify(configs),
+                error: function() {
+                    alert('An error occured')
+                },
+                success: function(response) {
+                    response = JSON.parse(response)
+                    if (response.error) {
+                        $('#top-notice-ctnr span').html('An error occured during the configuration saving');
+                        $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+                    }
+                    $('#top-notice-ctnr span').html('Configuration successfuly saved');
+                    $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+                }
+            });
+            closeLightbox()
+        }
+
+
+        function resolveLocation(geocoder, latlng){
+            geocoder.geocode({'location': latlng}, function(results, status) {
+                if (status === google.maps.GeocoderStatus.OK) {
+                    if (results[1]) {
+                        if (results[0].formatted_address.indexOf("Unnamed Road") !== -1) {
+                            $('#formatted-address').val(results[1].formatted_address);
+                        } else {
+                            $('#formatted-address').val(results[0].formatted_address);
+                        }
+                    } else if (results[0]) {
+                        $('#formatted-address').val(results[0].formatted_address);
+                    }
+                }
+            });
+        }
+
+        function pinCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    here = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    let geocoder = new google.maps.Geocoder,
+                        pinHereHTMLContent = $('#pin-here').html(),
+                        infowindow = new google.maps.InfoWindow({content: pinHereHTMLContent});
+                    resolveLocation(geocoder, here);
+                    hereMarker = new google.maps.Marker({
+                        position: here,
+                        map: map,
+                        draggable:true,
+                        animation: google.maps.Animation.BOUNCE,
+                        title: 'Here you are'
+                    });
+                    google.maps.event.addListener(hereMarker, 'dragstart', function (evt) {
+                        infowindow.close(map, hereMarker);
+                    });
+                    google.maps.event.addListener(hereMarker, 'dragend', function (evt) {
+                        stopBounce();
+                        var latitude = hereMarker.getPosition().lat();
+                        var longitude = hereMarker.getPosition().lng();
+                        here = {lat: latitude, lng: longitude};
+                        map.panTo(hereMarker.getPosition());
+
+                        infowindow.open(map, hereMarker);
+                        locationResolve(geocoder, here);
+
+                    });
+                    hereMarker.addListener('click', function() {
+                        hereMarker.setAnimation(google.maps.Animation.DROP);
+                        infowindow.open(map, hereMarker);
+                    });
+                    map.setZoom(18);
+                    map.setCenter(here);
+                })
+            } else {
+                // handleLocationError
+                ikwen.showFloatingNotice("{% trans 'Unable to pin your position, try again!'%}", '', 4);
+            }
+
+            $('body').on('click', '.show-modal-new-pin', function () {
+                addMarkerToMap(here['lat'], here['lng'], '', 10, "{% static 'pinsview/img/logo-pinsview-32x32.png' %}");
+                $('#new-pin-lat').val(here['lat']);
+                $('#new-pin-lng').val(here['lng']);
+                $('#modal-new-pin').modal('show');
+
+            });
+        }
+
+        var height = $(document).height();
+        $('#map_canvas').css({'height': height, 'marginTop':0});
+{#        $('#filter').css({'height': height-150});#}
+
+        $("#toggle-search-inp").click(function() {
+            $('form#search').toggleClass('active')
+        });
+        function grabDeviveInformations(pinId) {
+            var endpoint = "{% url 'pinsview:grab_pin_info' %}";
+            var params = {format: 'json', pinId:pinId};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    var pin = data.pin;
+                    var $newRow = $('div.tooltip-html-text.tpl').clone().removeClass('tpl');
+                    return applyPinTooltipTemplate($newRow, pin);
+
+                }
+            })
+        }
+
+        $(document).on('click', '.open-right-panel', function(event) {
+            var pk = $(this).parents('.asset').attr('id'),
+                assetName = $(this).parents('.asset').find('h4').text(),
+                prospectEventList = grabAssetEvent(pk)
+            $("#asset-details").find('.add-event').data("pk", pk)
+            $("#asset-name").text(assetName)
+            ikwen.swipeInRightPanel()
+        }).on('click', '.add-event', function(event) {
+             var assetPk = $(this).data('pk')
+             openEventForm(assetPk)
+        })
+
+        $("#update-done").click(function(){
+            var fiber_index = $(this).data('index')
+            saveLineUpdate(fiber_index)
+        })
+
+        $(document).on('click', '.edit-fiber', function(event) {
+            var pk = $(this).parents('.asset').attr('id'),
+                localFibers = JSON.parse(localStorage.getItem("fiberlines"))
+            for (var i = 0; i < localFibers.length; i++) {
+                var fib = localFibers[i]['fiberline']
+                if(fib.id == pk) {
+                    activateLinesOptimizing(i)
+                    $('#ld-toolbox').fadeIn()
+                    $("#update-done").data('index', i)
+                    break
+                }
+            }
+
+        })
+
+
+        $('#cancel-update').click(function(){
+            deletePins();
+            deleteFiberline();
+            liveDrawing = false;
+            loadAllEquipments(true);
+            checkDataIntegrity();
+            $('#ld-toolbox').hide()
+        });
+
+        function saveLineUpdate(line) {
+            var localFibers = JSON.parse(localStorage.getItem("fiberlines"))
+            var fib = ikwen.polylines[line]
+            var fiberId = localFibers[line]['fiberline'].id
+            var path = fib.getPath();
+            var len = path.getLength();
+            var lineCoords = "";
+            for (var i = 0; i < len; i++) {
+                lineCoords += path.getAt(i).toUrlValue(10) + ";";
+            }
+            var lineDistance = calculateDistance(path);
+            fib.setOptions({strokeColor: '#820771', editable: false});
+            saveLinePath(fiberId, lineCoords, lineDistance, true);
+            $('#ld-toolbox').hide()
+
+            $('#top-notice-ctnr span').html('Fiber line successfuly updated');
+            $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+        }
+
+
+        function grabAssetEvent(assetId) {
+            var endpoint = "{% url 'pinsview:get_asset_event_log' %}";
+            var params = {format: 'json', assetId:assetId};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    var eventList = data.event_list;
+                    populateEvent(eventList)
+                    ikwen.swipeInRightPanel()
+                }
+            })
+        }
+
+
+        function grabAssetConfig(assetId) {
+            var endpoint = "{% url 'pinsview:grab_asset_config' %}", configs
+            var params = {assetId:assetId};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    configs = data;
+                    populateConfigs(configs)
+                }
+            })
+        }
+
+        function openConfigForm(assetPk) {
+            $('#lightbox .dialog.new-config').show();
+            $('#lightbox .dialog.new-config').find('form#configs').attr('asset-pk', assetPk);
+            $('#lightbox .dialog.new-config .custom-config').not('.tpl').not('.first').remove()
+            $('#lightbox .dialog').not('.new-config').each(function () {
+                $(this).hide()
+            });
+            grabAssetConfig(assetPk)
+            $('#lightbox').fadeIn().show()
+        }
+
+        function openEventForm(assetPk) {
+            $('#lightbox .dialog.new-event').show();
+            $('#lightbox .dialog.new-event').find('#asset-id').val(assetPk);
+            $('#lightbox .dialog.new-event').find('input.name').val('')
+            $('#lightbox .dialog.new-event').find('.details').val('')
+            $('#lightbox .dialog').not('.new-event').each(function () {
+                $(this).hide()
+            });
+            $('#lightbox').fadeIn().show()
+        }
+
+        function populateConfigs(configs) {
+
+            $('#configs .custom-config').not('.tpl').not('.first').remove();
+            if (!configs) {
+                return
+            }
+            var $list = $('<div></div>'), i=1;
+
+            for (let key in configs) {
+                var config = {}
+                config.key = key
+                config.val = configs[key]
+                if (config.key !== 'no_config'){
+                    var $newRow = $('#configs .custom-config.tpl').clone().removeClass('tpl').addClass('cs' + i)
+                    $newRow = applyConfigTemplate($newRow, config, i).show();
+                    $list.append($newRow)
+                    i += 1
+                }
+
+            }
+            $list.children().insertBefore('#configs .custom-config.tpl')
+        }
+
+        function populateEvent(eventList) {
+            $('ul.asset-event-list li.event').not('.tpl').remove();
+            $('ul.asset-event-list li.empty-grid').remove();
+            if (eventList.length === 0) {
+                var $emptyRow = $('<li class="empty-grid">{% trans "No history for this asset" %}</li>');
+                $emptyRow.insertBefore('ul.asset-event-list li.event.tpl');
+                return
+            }
+            $('li.empty-grid').remove()
+            var $list = $('<div></div>');
+            for (var i = 0; i < eventList.length; i++) {
+                var $newRow = $('ul.asset-event-list li.event.tpl').clone().removeClass('tpl');
+                $newRow = applyEventTemplate($newRow, eventList[i]).show();
+                $list.append($newRow)
+            }
+            $list.children().insertBefore('ul.asset-event-list li.event.tpl')
+        }
+
+        function applyConfigTemplate($tplRow, config, i) {
+            $tplRow.find('.btn-icon.remove-config').data('i', i)
+            $tplRow.addClass('resize-form-group')
+            $tplRow.find('.title').val(config.key).addClass('no-border')
+            $tplRow.find('.title').attr('name', "item" + i)
+            $tplRow.find('.config-val').val(config.val).addClass('no-border')
+            $tplRow.find('.config-val').attr('name', "config" + i)
+            return $tplRow
+        }
+
+        function applyEventTemplate($tplRow, event) {
+            $tplRow.attr('id', event.id)
+            $tplRow.attr('asset-name', event.title)
+            $tplRow.attr('asset-type', event.type)
+            $tplRow.attr('asset-detail', event.details)
+            $tplRow.attr('asset-agent', event.agent)
+            $tplRow.attr('asset-created', event.created)
+            $tplRow.find('.type').text(event.type);
+            $tplRow.find('.title').text(event.summary);
+            $tplRow.find('.created').text(event.created);
+            {#$tplRow.find('.summary').text(event.summary);#}
+            return $tplRow
+        }
+
+        function applyPinTooltipTemplate($tplRow, pin) {
+            var description = "<em class='text-muted'> &lt;No description&gt;</em>",
+                    noImg = "no_photo.png",
+                    strPhotoUrl = pin.photo,
+                    f = strPhotoUrl.search(noImg);
+
+            if(strPhotoUrl.search(noImg) != -1) $tplRow.find('span.view-img a').remove();
+            $tplRow.attr('id', pin.id);
+            $tplRow.find('h4').text(pin.name);
+            $tplRow.find('.photo').css('background-image', 'url(' + pin.photo + ')');
+            if (pin.description != '') description = pin.description;
+            if (pin.category == "Client" || pin.category == "Modem DOCSIS" || pin.category == "Modem PON") {
+                if (pin.client_code) $tplRow.find('.code').html(pin.site_code + " / " + pin.client_code);
+                else $tplRow.find('.code').html("<em>&lt;Site ID&gt;</em> / <em>&lt;Client ID&gt;</em>");
+                if (pin.client_name) $tplRow.find('.client-name').html("<b>Name: </b>"+pin.client_name+"");
+                else $tplRow.find('.client-name').html("<b>Name: </b><em>&lt;Unknown&gt;</em>");
+            }
+
+            $tplRow.find('.desc').html(description);
+
+            $tplRow.find('.admin a').attr('href', pin.admin_url);
+            $tplRow.find('.reload a').attr('pinid', pin.id);
+            $tplRow.find('.created span').text(pin.created_on);
+            $tplRow.find('.agent span').text(pin.agent);
+            return $tplRow
+        }
+
+        function applyFiberTooltipTemplate($tplRow, fiber) {
+            var description = "<em class='text-muted'> &lt;No description&gt;</em>";
+            $tplRow.attr('id', fiber.id);
+            $tplRow.find('.edit-lnk .admin a').hide();
+            if (fiber.agent_username == "{{ request.user.username }}"){
+                $tplRow.find('.edit-lnk .admin a').attr('fiberid', fiber.id).show();
+            }
+            $tplRow.find('.edit-lnk .reload a').attr('fiberid', fiber.id);
+            $tplRow.find('h4').text(fiber.name);
+            if (fiber.description != '') description = fiber.description;
+            $tplRow.find('div.description span').html(description);
+            $tplRow.find('span.admin a').attr('href', fiber.admin_url);
+            $tplRow.find('.created-on span').text(fiber.created_on);
+            $tplRow.find('.distance span').text(fiber.distance);
+            $tplRow.find('.agent span').text(fiber.agent);
+            return $tplRow
+        }
+
+        function applyEventDetailTemplate($tplRow, eventDetail) {
+            var description = "<em class='text-muted'> &lt;No description&gt;</em>"
+            $tplRow.attr('id', eventDetail.id);
+            $tplRow.find('.asset span').text(eventDetail.asset_name);
+            if (eventDetail.details !== '') description = eventDetail.details;
+            $tplRow.find('.details span').html(description);
+
+            $tplRow.find('.measure strong').text(eventDetail.event_type_label);
+            $tplRow.find('.measure span').text(eventDetail.measure);
+            $tplRow.find('.created span').text(eventDetail.created_on);
+            $tplRow.find('.agent span').text(eventDetail.agent);
+            return $tplRow
+        }
+
+
+
+        function applyOfflineTemplate($tplRow, pin, i) {
+            if (pin.zone != null) zone = pin.zone.name
+            else zone = " UNKNOWN"
+            $tplRow.find('.counter').text(i+1);
+            $tplRow.attr('data-city', pin.city.name);
+            $tplRow.find('.pin-name').attr('data-pkey', pin.id);
+            $tplRow.find('.pin-name').attr('data-lng', pin.lng);
+            $tplRow.find('.pin-name').attr('data-lat', pin.lat);
+            $tplRow.find('.pin-name').attr('data-city', pin.city.name);
+            $tplRow.find('.pin-name').attr('data-icon', OFFLINE_PON_ICON);
+            $tplRow.find('.pin-name').text(pin.name);
+            $tplRow.find('.location').text(pin.city.name + "/" + zone);
+
+            return $tplRow
+        }
+
+
+        // from Here we manage line Measures
+        $('#measure-line').click(function(e){
+            if ($(this).parent('.action').hasClass('.turn-back')){
+                prepareDefaultUI();
+                measuring = true;
+            }else {
+                prepareUIforLineMeasuring();
+                var lineSymbol = {
+                  path: 'M 0,-1 0,1',
+                  strokeOpacity: 1,
+                  scale: 1
+                };
+                ikwen.polylines = [];
+                ikwen.currentMarkerListOnTheMap = [];
+                ikwen.currentMarkerDataListOnTheMap = [];
+                map.setOptions({draggableCursor: 'default'});
+                var poly = new google.maps.Polyline({
+{#                strokeColor: '#000000',#}
+                    strokeWeight: 1,
+                    strokeOpacity: 0,
+                    icons: [{
+                        icon: lineSymbol,
+                        offset: '0',
+                        repeat: '10px'
+                      }]
+                });
+                poly.setMap(map);
+                ikwen.polylines.push(poly);
+
+            // Add a listener for the click event
+                map.addListener('click', addLatLng);
+            }
+
+        });
+
+        $('form#line-search button').on('click', function() {
+            var lineCoords = getPolylinePath(),
+                line = $('form#line-search  input:hidden').val(),
+                    lineDistance = $('#current-polyline-length').attr('distance');
+
+            if (line == ""){
+                $('#top-notice-ctnr span').html('Choose a line first please');
+                $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+                return false
+            }
+
+            saveLinePath(line, lineCoords, lineDistance, false);
+            $('#top-notice-ctnr span').html('line saved!');
+            $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+        });
+
+        $('#offline-asset select').on('change', function() {
+            var city = $(this).val()
+            $('#offline-asset table tbody tr').hide()
+            if (city == "all"){
+                $('#offline-asset table tbody tr ').each(function () {
+                    $(this).show()
+                })
+            }else{
+                $('#offline-asset table tbody tr[data-city=' + city + ']').each(function () {
+                    $(this).show()
+                })
+            }
+
+        });
+{#        Here are the application's useful functions; they are build for both drawing and equipement management #}
+{#    drawing and equipement management     #}
+
+
+
+
+        // set a marker to the map
+        function addMarkerToMap(lat, lng, pinId, zoom, iconImg, bounds, pan) {
+            if (bounds) {
+                var sw = bounds.getSouthWest(),
+                    ne = bounds.getNorthEast();
+                if (parseFloat(lat) < sw.lat() || parseFloat(lng) < sw.lng()
+                    || parseFloat(lat) > ne.lat() || parseFloat(lng) > ne.lng()) return;
+            }
+            if (map.getZoom() < 13 || zoom > map.getZoom()) return;
+            var infowindow = new google.maps.InfoWindow();
+            lastMarkerId = ikwen.currentMarkerListOnTheMap.length;
+            var myLatLng = new google.maps.LatLng(lat, lng);
+            var marker = new google.maps.Marker({
+                id: lastMarkerId - 1,
+                position: myLatLng,
+                map: map,
+                icon: iconImg,
+                pinId: pinId,
+                draggable:true,
+                zoom: zoom
+
+            });
+            var markerData = {id: pinId, lat: lat, lng:lng, icon:iconImg};
+            ikwen.currentMarkerListOnTheMap.push(marker);
+            ikwen.currentMarkerDataListOnTheMap.push(markerData);
+            //Gives each marker an Id for the on click markerCount++;
+            // Creates the event listener for clicking the marker
+            // and places the marker on the map
+            google.maps.event.addListener(marker, "dragstart", function(event){
+                ikwen.startDragPosition =  this.getPosition();
+
+            });
+            google.maps.event.addListener(marker, 'dragend', function(event) {
+                var index = ikwen.currentMarkerListOnTheMap.indexOf(marker);
+                ikwen.currentMarkerListOnTheMap.splice(index, 1);
+                ikwen.currentMarkerDataListOnTheMap.splice(index, 1);
+                ikwen.currentMarkerListOnTheMap.push(marker);
+                ikwen.currentMarkerDataListOnTheMap.push(markerData);
+                if (confirm("Do you confirm the new position?")){
+                    changePinPosition(pinId, event.latLng.lat(), event.latLng.lng())
+                }else{
+                    changePinPosition(marker)
+                }
+            });
+            google.maps.event.addListener(marker, 'mouseover', (function(marker, markerCount) {
+                return function() {
+                    $('.gm-style-iw').parent().hide();
+                    var htmlInfo = grabDeviveInformations(marker.pinId);
+                    var endpoint = "{% url 'pinsview:grab_pin_info' %}";
+                    var params = {format: 'json', pinId:pinId};
+                    $.getJSON(endpoint, params, function(data) {
+                        var pin = data.pin;
+                        var $newRow = $('div.tooltip-html-text.tpl').clone().removeClass('tpl');
+                        var htmContent = applyPinTooltipTemplate($newRow, pin);
+                        $newRow.find('.spinner').hide();
+                        var strHtmContent = htmContent.prop('outerHTML');
+                        infowindow.setContent(strHtmContent);
+                    });
+
+                    infowindow.setContent(htmlInfo);
+                    infowindow.open(map, marker); }
+            }) (marker, markerCount));
+            if (pan) map.panTo(myLatLng);
+            return marker
+        }
+
+
+
+
+        function drawPoly(fibers){
+            var polylines = constructPolyCoords(fibers);
+            setPoly(polylines)
+        }
+
+        function constructPolyCoords(fibers){
+            var fiberLines = [];
+            for (var j=0; j<fibers.length; j++){
+                var fiberLine = fibers[j]['fiberline'];
+                var line_coords = fibers[j]['line_coords'];
+                var fiberLineCoord = [];
+                for (var k=0; k<line_coords.length; k++){
+                    var pos = {};
+                    pos.lat = parseFloat(line_coords[k].latitude);
+                    pos.lng = parseFloat(line_coords[k].longitude);
+                    fiberLineCoord.push(pos);
+                }
+                var fiber={'fiberline':fiberLine, 'line_coords':fiberLineCoord};
+                fiberLines.push(fiber)
+            }
+            return fiberLines
+        }
+
+        function setPoly(fiberLines){
+            for (var i = 0; i < fiberLines.length; i++) {
+                var id =fiberLines[i]['fiberline'].id;
+                var pathStyle = new google.maps.Polyline({
+                    fiberId: fiberLines[i]['fiberline'].id,
+                    path: fiberLines[i]['line_coords'],
+                    geodesic: true,
+                    strokeColor: fiberLines[i]['fiberline'].color,
+                    strokeOpacity: 1.0,
+                    strokeWeight: 3,
+                    map: map,
+                    visible: true
+                });
+                pathStyle.setMap(map);
+                ikwen.polylines.push(pathStyle);
+                var fiberline = fiberLines[i]['fiberline'],
+                    endpoint = "{% url 'pinsview:grab_fiber_info' %}";
+                google.maps.event.addListener(pathStyle, 'click', function(event) {
+                    var params = {format: 'json', fiberId:this.fiberId};
+
+                    $.getJSON(endpoint, params, function(data) {
+                        var $newTooltip = $('div.fiber-tooltip-html-text.tpl').clone().removeClass('tpl'),
+                            htmlContent = applyFiberTooltipTemplate($newTooltip, data.fiber),
+                            strHtmlContent = htmlContent.prop('outerHTML');
+                        infowindow.setContent(strHtmlContent);
+
+                        // infowindow.position = event.latLng;
+                        infowindow.setPosition(event.latLng);
+                        infowindow.open(map);
+                    })
+
+                });
+
+            }
+        }
+{#        change marker position#}
+        function changePinPosition(marker) {
+            var lat = ikwen.startDragPosition.lat();
+            var lng = ikwen.startDragPosition.lng();
+            var latlng = new google.maps.LatLng(lat, lng);
+            marker.setPosition(latlng);
+        }
+        // set markers to invisible or remove every markers from the marker list
+        function deletePins() {
+            //Loop through all the markers and remove
+            for (var i = 0; i < ikwen.currentMarkerListOnTheMap.length; i++) {
+                var marker = ikwen.currentMarkerListOnTheMap[i];
+                marker.setMap(null);
+            }
+            ikwen.currentMarkerListOnTheMap = [];
+            ikwen.currentMarkerDataListOnTheMap = [];
+        }
+        function deleteFiberline() {
+            for (i=0; i<ikwen.polylines.length; i++) {
+              ikwen.polylines[i].setMap(null); //or line[i].setVisible(false);
+            }
+        }
+        var deleteLastMarker = function() {
+            var index = ikwen.currentMarkerListOnTheMap.length;
+{#            var marker = ikwen.currentMarkerListOnTheMap.length[ - 1];#}
+            ikwen.currentMarkerListOnTheMap[index-1].setMap(null);
+            ikwen.currentMarkerListOnTheMap.pop();
+            ikwen.currentMarkerDataListOnTheMap.pop();
+        };
+
+
+    // Save Equipment using AJAX
+        function savePin(category, latitude, longitude, formattedAddress, name, desc) {
+            var endpoint = "{% url 'pinsview:save_pin' %}";
+            var params = {format: 'json', category: category, description:desc, latitude:latitude, longitude:longitude,
+                formatted_address: formattedAddress, name: name};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                $('#save-pin').removeClass('processing');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    var pin = data.pin,
+                    latitude = parseFloat(pin.latitude),
+                    longitude = parseFloat(pin.longitude),
+                    pinId = pin.id;
+                    if (pin.category.icon) {
+                        iconImg =  "{{ media_root }}" + pin.category.icon
+                    } else {
+                        iconImg = "{{ media_root }}" + "logo-pinsview.png"
+                    }
+                    addMarkerToMap(latitude, longitude, pinId, pin.category.zoom, iconImg, null, true);
+                    checkNewAsset();
+                    $('#top-notice-ctnr span').html('New pin Saved');
+                    $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+                    $('#modal-new-pin').modal('hide');
+                    $('#pin-here').hide();
+                    hereMarker.setMap(null);
+                }
+            });
+            return false
+        }
+
+
+
+        function filterEquipments(params) {
+            var endpoint = "{% url 'pinsview:filter_network_data' %}";
+            var agentId = $('#agent-name').data('agentid');
+            var current_user_lat = "{{ user_profile.city.latitude }}",
+                current_user_lng = "{{ user_profile.city.longitude }}";
+            params.format ='json';
+            params.agentId = agentId;
+
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    var myLatlng = new google.maps.LatLng(current_user_lat, current_user_lng);
+                    var lineCoords = data.lines;
+                    drawPoly(lineCoords);
+                    var pins = data.pins;
+                    for (var i=0; i<=pins.length-1; i++){
+                        var latitude = parseFloat(pins[i].latitude),
+                            longitude = parseFloat(pins[i].longitude),
+                            pinId = pins[i].id,
+                            zoom = pins[i].category.zoom;
+                        if (pins[i].category.icon) {
+                            iconImg =  "{{ media_root }}" + pins[i].category.icon
+                        }
+                        addMarkerToMap(latitude, longitude, pinId, zoom, iconImg, null, true);
+                    }
+                }
+            });
+            return false
+        }
+
+
+        function addLatLng(event) {
+            var poly = ikwen.polylines[0];
+
+            // Because path is an MVCArray, we can simply append a new coordinate
+            // and it will automatically appear.
+            var path = poly.getPath();
+                path.push(event.latLng);
+            var distance = calculateDistance(path);
+
+                $('#current-polyline-length').text(distance + 'm').attr('distance', distance);
+            // Add a new marker at the new plotted point on the polyline.
+{#            var marker = new google.maps.Marker({#}
+{#                position: event.latLng,#}
+{#                title: '#' + path.getLength(),#}
+{#                map: map#}
+{#            });#}
+{#            ikwen.currentMarkerListOnTheMap.push(marker)#}
+        }
+
+        function prepareUIforLiveDrawing() {
+            $('div#tools').hide()
+        }
+
+        function prepareUIforLineMeasuring() {
+{#            $("span#erase").click();#}
+            $("span#erase").parent('.action').hide();
+            $("span#add-coords").parent().hide();
+            $("span#measure-line").parent().hide();
+            $("input#keyword").hide();
+            $("span#live-drawing").parent('.action').hide();
+            $("div#toggle-search-inp").hide();
+            $("div#current-polyline-length").show();
+            $("span#view-all-equipments").parent('.action').show()
+        }
+
+        function prepareDefaultUI() {
+            $("span#erase").click();
+            $("span#erase").parent('.action').show();
+            $("#add-coords").parent('.action').show();
+            $("span#live-drawing").parent('.action').show();
+            $("span#measure-line").parent().show();
+            $("input#keyword").show();
+            $("div#toggle-search-inp").show();
+            $("div#current-polyline-length").hide();
+            $("span#view-all-equipments").parent('.action').hide()
+        }
+
+        function calculateDistance(fiberLinePath) {
+            if (fiberLinePath) {
+                var coordList = fiberLinePath.getArray(),polylineLength = 0, polyPath = [], coords = [];
+                for (var i=0; i<coordList.length; i++){
+                    if(typeof coordList[i] !== 'undefined'){
+                        var lat = coordList[i].lat(),
+                            lng = coordList[i].lng(),
+                            coord = lat + ',' + lng;
+                        coords.push(coord)
+                    }
+                }
+                for (var j=0; j<coords.length; j++){
+                    var coordinate = coords[j].split(','),
+                            plat = parseFloat(coordinate[0]), plng = parseFloat(coordinate[1]);
+                    var pointPath = new google.maps.LatLng(plat,plng);
+                    polyPath.push(pointPath);
+                    if (j >= 1){
+                        polylineLength += google.maps.geometry.spherical.computeDistanceBetween(polyPath[j], polyPath[j-1]);
+                    }
+                }
+                return polylineLength.toFixed(0)
+            }
+        }
+
+
+        function changePinPosition(pinId, latitude, longitude){
+            var endpoint = "{% url 'pinsview:change_pin_position' %}";
+            var params = {format: 'json', pinId:pinId, latitude: latitude, longitude:longitude};
+            $('body, button').css('caursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    var myLatlng = new google.maps.LatLng(latitude, longitude);
+                    var options = {
+                        center: myLatlng, zoom: 22,
+                        mapTypeId: google.maps.MapTypeId.ROADMAP
+                    };
+                    map.panTo(myLatlng);
+                    var localPins = JSON.parse(localStorage.getItem("pins"));
+                    var changePin = data.pin;
+                    for (var j = 0; j < localPins.length; j++) { //loop over the collection
+                        if (localPins[j].id === changePin.id) { //see if ids match
+                            localPins.splice(j, 1); //remove item from array
+                            break; //exit loop
+                        }
+                    }
+                    var StrLocalPins = JSON.stringify(localPins);
+                    var end = StrLocalPins.length - 1;
+                    var finalLocalPins = StrLocalPins.substr(0, end) + ',{' + JSON.stringify(changePin).substring(1) + ']';
+                    localStorage.setItem("pins", finalLocalPins);
+                    $('div#top-notice-ctnr span').html("pin position changed");
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                }
+            })
+        }
+
+        function closeLightbox(){
+            $('#lightbox').find('input').each(function () {
+                $(this).val('')
+            })
+
+            $('#lightbox').find('select').each(function () {
+                $(this).val('')
+            })
+
+            $('#lightbox').find('textarea').each(function () {
+                $(this).val('')
+            })
+            $('#lightbox .dialog.new-coordinate input').val('');
+            $('#lightbox .dialog.new-pin input').val('');
+            $('#lightbox .dialog.new-pin textarea').text('');
+            $('#lightbox .dialog.new-coordinate input').val('');
+            $('#lightbox .dialog.new-coordinate').hide();
+            $('#lightbox .dialog.notification').hide();
+            $('#lightbox .dialog.new-pin').hide();
+            $('#lightbox .dialog.new-event').hide();
+            $('#lightbox .dialog.event-summary').hide();
+            $('#lightbox .dialog.new-config').hide();
+            $('#lightbox').fadeIn().hide()
+        }
+
+        function getSelectedCriteria(){
+            fiberStatus = '';
+            operator = '';
+            pinCategory = '';
+            pinStatus = '';
+            $('section label.checkbox').find('input:checkbox:checked').each(function() {
+                if ($(this).hasClass('fiberstatus')) fiberStatus += ($(this).val() + ',');
+                if ($(this).hasClass('operator')) operator += ($(this).val() + ',');
+                if ($(this).hasClass('pincategory')) pinCategory += ($(this).val() + ',');
+                if ($(this).hasClass('pinstatus')) pinStatus += ($(this).val() + ',')
+
+            });
+            return {
+                fiberStatus: fiberStatus,
+                pinCategory: pinCategory,
+                pinStatus: pinStatus
+            }
+        }
+
+        function getTechieInstallation(agentId) {
+            var endpoint = "{% url 'pinsview:get_agent_installation' %}";
+            var params = {format: 'json', agentId: agentId};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    // draw polyline with the revovered coords
+                    var lineCoords = data.lines;
+                    drawPoly(lineCoords);
+                    // positionning recovered pins on the map
+                    var pins = data.pins;
+                    for (var i=0; i<=pins.length-1; i++) {
+                        var latitude = parseFloat(pins[i].latitude),
+                            longitude = parseFloat(pins[i].longitude),
+                            pinId = pins[i].id,
+                            zoom = pins[i].category.zoom;
+                        if (pins[i].image)    photo = pins[i].image;
+                        else  photo = "{% static 'pinsview/img/no_photo.png' %}";
+
+                        if (pins[i].category.icon) {
+                            iconImg =  "{{ media_root }}" + pins[i].category.icon
+                        }
+                        addMarkerToMap(latitude, longitude, pinId, zoom, iconImg);
+                        $('div#suggestions-for-view div.close').click()
+                    }
+                }
+            });
+            return false
+        }
+
+        function addNewLineLatLng(event) {
+            var poly = ikwen.polylines[0];
+
+            // Because path is an MVCArray, we can simply append a new coordinate
+            // and it will automatically appear.
+            var path = poly.getPath();
+                path.push(event.latLng);
+            var distance = calculateDistance(path);
+            $('#current-polyline-length').text(distance + ' Meters').attr('distance', distance);
+
+        }
+
+
+        function initLiveDrawingUI() {
+            $("#current-polyline-length").show();
+            $('button#save-fiber-modification').hide();
+            $('#toolbox .live-drawing').hide();
+            $('#toolbox .measure-line').hide();
+            $('#toolbox .erase').hide();
+            $('div#ld-tools-content').show().removeClass('ik-hdn')
+
+{#            $('#equipement-viewer').fadeOut("slow", function (e) {#}
+{#                $('div#ld-tools-content').show().removeClass('ik-hdn')#}
+{#            }).hide();#}
+            ikwen.polylines = [];
+{#            ikwen.currentMarkerListOnTheMap = [];#}
+            map.setOptions({draggableCursor: 'default'});
+            var poly = new google.maps.Polyline({
+            strokeColor: '#000000',
+            strokeOpacity: 1.0,
+            strokeWeight: 3
+            });
+            poly.setMap(map);
+            ikwen.polylines.push(poly);
+            var deleteMenu = new DeleteMenu();
+
+            google.maps.event.addListener(poly, 'rightclick', function(e) {
+              // Check if click was on a vertex control point
+                if (e.vertex == undefined) {
+                    return;
+                }
+                deleteMenu.open(map, poly.getPath(), e.vertex);
+            });
+        // Add a listener for the click event
+            clickListener = map.addListener('click', addNewLineLatLng);
+        }
+
+        function activateLineOptimizing(){
+            // reset options.
+            var line = ikwen.polylines[0];
+            line.setOptions({strokeColor: '#00FFaa', editable: true});
+            google.maps.event.removeListener(clickListener);
+            google.maps.event.addListener(line, "dragend", getPolylinePath);
+            google.maps.event.addListener(line.getPath(), "insert_at", getPolylinePath);
+            google.maps.event.addListener(line.getPath(), "remove_at", getPolylinePath);
+            google.maps.event.addListener(line.getPath(), "set_at", getPolylinePath);
+        }
+
+        function activateLinesOptimizing(index){
+            // reset options.
+            var line = ikwen.polylines[index];
+            line.setOptions({strokeColor: '#00FFaa', editable: true});
+            google.maps.event.removeListener(clickListener);
+            google.maps.event.addListener(line, "dragend", getPolylinePath);
+            google.maps.event.addListener(line.getPath(), "insert_at", getPolylinePath);
+            google.maps.event.addListener(line.getPath(), "remove_at", getPolylinePath);
+            google.maps.event.addListener(line.getPath(), "set_at", getPolylinePath);
+        }
+
+        function getPolylinePath() {
+            var path = ikwen.polylines[0].getPath();
+            var len = path.getLength();
+            var coordStr = "";
+            for (var i = 0; i < len; i++) {
+                coordStr += path.getAt(i).toUrlValue(10) + ";";
+            }
+            return coordStr;
+        }
+
+
+        $("#save-event").click(function (e) {
+            var asset_id = $('form#event #asset-id').val(),
+            log_event_type_id = $('form#event .log-type').val(),
+            measure = $('form#event .measure').val(),
+            name = $('form#event .name').val(),
+            details = $('form#event .details').val()
+            saveAssetEvent(details, name, log_event_type_id, measure, asset_id)
+            return false
+        })
+
+        function saveAssetEvent(details, name, log_event_type_id, measure, asset_id) {
+            var event_log = []
+            var endpoint = "{% url 'pinsview:save_event_log' %}";
+            var params = {format: 'json', details: details, log_event_type_id:log_event_type_id, measure:measure, asset_id:asset_id, name:name};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    event_log.push(data.event_log)
+                    populateProspectEvent(event_log)
+                    closeLightbox()
+                }
+            });
+            return false
+        }
+
+        function populateProspectEvent(eventList) {
+            $('ul.asset-event-list li.event').not('.tpl').remove();
+            $('ul.asset-event-list li.empty-grid').remove();
+            if (eventList.length == 0) {
+                var $emptyRow = $('<li class="empty-grid">{% trans "No data found for this asset" %}</li>');
+                $emptyRow.insertBefore('ul.asset-event-list li.event.tpl');
+                return
+            }
+            $('li.empty-grid').remove()
+            var $list = $('<div></div>');
+            for (var i = 0; i < eventList.length; i++) {
+                var $newRow = $('ul.asset-event-list li.event.tpl').clone().removeClass('tpl');
+                $newRow = applyEventTemplate($newRow, eventList[i]).show();
+                $list.append($newRow)
+            }
+            $list.children().insertBefore('ul.asset-event-list li.event.tpl')
+        }
+
+        function saveLinePath(line, strCoords, distance, isUpdate) {
+            var endpoint = "{% url 'pinsview:save_live_optical_fiber_coords' %}";
+            var params = {format: 'json', line: line, strCoords:strCoords, distance:distance};
+            $('body, button').css('cursor','wait');
+            $.getJSON(endpoint, params, function(data) {
+                $('body, button').css('cursor','default');
+                if (data.error){
+                    $('div#top-notice-ctnr span').html(data.error).addClass('failure');
+                    $('#top-notice-ctnr').fadeIn().delay(5000);
+                } else {
+                    if(!isUpdate){
+                        deletePins();
+                        deleteFiberline();
+                        $('#top-notice-ctnr span').html('Line path saved');
+                        $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+                    }else {
+                        $('#top-notice-ctnr span').html('Line updated');
+                        $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(3000).fadeOut();
+                    }
+                    var currentLine = data.line;
+                    updateLineCoords(currentLine);
+{#                    Update local storage #}
+                }
+            });
+            return false
+        }
+        $(document).on('click', 'div.tooltip-html-text span.view-img a', function(event) {
+            event.preventDefault();
+            $(this).parents('div.tooltip-html-text').find('.stage').animate({height: '150px'});
+            return false
+        });
+
+        function updateFiberLength(event) {
+             var poly = ikwen.polylines;
+            // Because path is an MVCArray, we can simply append a new coordinate
+            // and it will automatically appear.
+            for(var i=0; i<poly.length; i++){
+                var currentPolyline = poly[i],
+                fiberId = currentPolyline.fiberId;
+
+                var path = currentPolyline.getPath();
+                    path.push(event.latLng);
+                var distance = calculateDistance(path),
+                params = {format: 'json', fiberId:fiberId, distance:distance};
+                $.getJSON('{% url 'pinsview:update_fibers_distance' %}', params, function(data) {
+
+                });
+
+            }
+        }
+        $('#dist-reload').click(function (e) {
+            updateFiberLength(e)
+        });
+
+        function checkNewAsset() {
+            $.getJSON('{% url 'pinsview:check_new_pin' %}',  {'lastPinId': lastPinId}, function(resp) {
+                if (resp.length > 0){
+                    var newPins = [], newPin;
+                    for (var j=0; j<resp.length; j++) {
+                        var d = resp[j];
+                        addMarkerToMap(d.lat, d.lng, d.id, d.zoom, d.icon, map.getBounds());
+                        newPin = {'id': d.id, 'lat':d.lat, 'lng': d.lng, 'icon':d.icon, 'zoom': d.zoom};
+                        newPins.push(newPin)
+                    }
+                    if (newPins.length > 0){
+                        lastPinId = resp[0].id;
+                        var localPins = JSON.parse(localStorage.getItem("pins")),
+                            finalJSLocalPins  = newPins.concat(localPins),
+                            StrLocalPins = JSON.stringify(finalJSLocalPins);
+                        localStorage.setItem("pins", StrLocalPins);
+                    }
+
+                }
+
+            });
+        }
+
+        function checkDataIntegrity() {
+            $.getJSON('{% url 'pinsview:check_data_integrity' %}',  {'lastFiberId': lastFiberId}, function(resp) {
+                if (resp.deleted_pins.length > 0){
+                    var localPins = JSON.parse(localStorage.getItem("pins"));
+                    if (localPins){
+                        var pin_to_delete = resp.deleted_pins;
+                        for (var i = 0; i < pin_to_delete.length; i++) {
+                            for (var j = 0; j < localPins.length; j++) { //loop over the collection
+                                if (localPins[j].id === pin_to_delete[i]) { //see if ids match
+                                    localPins.splice(j, 1); //remove item from array
+                                }
+                            }
+                        }
+                        localStorage.setItem("pins", JSON.stringify(localPins));
+                    }
+
+                }
+                if (resp.deleted_fibers.length > 0){
+                    console.log(localStorage.getItem("fiberlines"))
+                    var localFibers = JSON.parse(localStorage.getItem("fiberlines"));
+                    if (localFibers){
+                        var fiber_to_delete = resp.deleted_fibers;
+                        for (var i = 0; i < fiber_to_delete.length; i++) {
+                            for (var j = 0; j < localFibers.length; j++) { //loop over the collection
+                                if (localFibers[j]['fiberline'].id === fiber_to_delete[i]) { //see if ids match
+                                    localFibers.splice(j, 1); //remove item from array
+                                }
+                            }
+                        }
+                        localStorage.setItem("fiberlines", JSON.stringify(localFibers));
+                    }
+
+                }
+
+            });
+        }
+        function updateLineCoords(line) {
+            var updated = false;
+            var localFibers = JSON.parse(localStorage.getItem("fiberlines"));
+            for (var j = 0; j < localFibers.length; j++) { //loop over the collection
+                if (localFibers[j]['fiberline'].id == line['fiberline'].id) { //see if ids match
+                    localFibers.splice(j, 1); //remove item from array
+                    updated=true;
+                    break; //exit loop
+                }
+            }
+            if (updated){
+                var localLines = JSON.stringify(localFibers);
+                var end = localLines.length - 1;
+                var localFiberData = localLines.substr(0, end) + ',' + JSON.stringify(line) + ']';
+                localStorage.setItem("fiberlines", localFiberData);
+
+
+            }
+        }
+        function updateLines(){
+            var fiberIds = grabFibersWithNoCoords();
+            if (fiberIds){
+                $.getJSON('{% url 'pinsview:check_line_update' %}',  {'fiberIds': fiberIds.toString()}, function(resp) {
+                    if (resp.length > 0){
+                        var localFibers = JSON.parse(localStorage.getItem("fiberlines"));
+                        for (var i = 0; i < resp.length; i++) {
+                            for (var j = 0; j < localFibers.length; j++) { //loop over the collection
+                                if (localFibers[j]['fiberline'].id === resp[i]['fiberline'].id) { //see if ids match
+                                    localFibers.splice(j, 1); //remove item from array
+                                }
+                            }
+                        }
+                        var localLines = JSON.stringify(localFibers);
+                        var end = localLines.length - 1;
+                        var localFiberData = localLines.substr(0, end) + ',' + JSON.stringify(resp).substring(1);
+                        localStorage.setItem("fiberlines", localFiberData);
+                        drawPoly(resp);
+                    }
+                });
+            }
+        }
+
+        function grabFibersWithNoCoords() {
+            var noCoordFibers = [];
+            var localLines = localStorage.getItem("fiberlines");
+            var localFibers = JSON.parse(localLines);
+            if (localFibers){
+                for (var j = 0; j < localFibers.length; j++) {
+                    if (localFibers[j]['line_coords'].length == 0) {
+                        noCoordFibers.push(localFibers[j]['fiberline'].id)
+                    }
+                }
+            }
+            return noCoordFibers
+        }
+
+
+        $(document).on('click', 'div.fiber-tooltip-html-text div.edit-lnk .admin a', function(event) {
+            if($('button#save-fiber-modification').hasClass('update-mode')) {
+                $('#top-notice-ctnr span').html('You have an amendment in court; finish with it first');
+                $('#top-notice-ctnr').removeClass('ik-hdn').fadeIn().delay(7000).fadeOut();
+                return false
+            }
+            var pKey = $(this).attr('fiberid');
+            $('#save-fiber-modification').attr('fiberid', pKey);
+            $('button#save-fiber-modification').fadeIn().addClass('update-mode');
+            var index = -1;
+
+
+            var polylines = ikwen.polylines;
+            for(var j = 0, len = polylines.length; j < len; j++) {
+                if (polylines[j].fiberId == pKey) {
+                    index = j;
+                    ikwen.index = j;
+                    break;
+                }
+            }
+            if (index != -1){
+                var line = ikwen.polylines[index];
+                line.setOptions({strokeColor: '#00FFaa', editable: true});
+                google.maps.event.removeListener(clickListener);
+                google.maps.event.addListener(line, "dragend", getlinePath);
+                google.maps.event.addListener(line.getPath(), "insert_at", getlinePath);
+                google.maps.event.addListener(line.getPath(), "remove_at", getlinePath);
+                google.maps.event.addListener(line.getPath(), "set_at", getlinePath);
+                var coordList = line.getPath().getArray();
+                var coords = coordList[0],
+                plat = coords.lat(),
+                plng = coords.lng(),
+                center = new google.maps.LatLng(plat, plng);
+                map.panTo(center);
+            }
+            // lauch my request
+            return false
+        });
+        $(document).on('click', 'div.fiber-tooltip-html-text div.edit-lnk .reload a', function(event) {
+            var pKey = $(this).attr('fiberid');
+            var localFibers = JSON.parse(localStorage.getItem("fiberlines"));
+            for (var j = 0; j < localFibers.length; j++) { //loop over the collection
+                if (localFibers[j]['fiberline'].id == pKey) { //see if ids match
+                    localFibers.splice(j, 1);
+                    ikwen.polylines[j].setMap(null);
+                    infowindow.close();
+                    $.getJSON('{% url 'pinsview:get_specific_fiber_data' %}', {'fiberId': pKey}, function(resp) {
+                        if (resp.length > 0) {
+                            drawPoly(resp);
+
+                            var localLines = JSON.stringify(localFibers);
+                            var end = localLines.length - 1;
+                            var localFiberData = localLines.substr(0, end) + ',' + JSON.stringify(resp[0]) + ']';
+                            localStorage.setItem("fiberlines", localFiberData);
+                        }
+                    });
+                    break; //exit loop
+                }
+            }
+            return false
+        });
+
+        function getlinePath() {
+            var path = ikwen.polylines[ikwen.index].getPath();
+            var len = path.getLength();
+            var coordStr = "";
+            for (var i = 0; i < len; i++) {
+                coordStr += path.getAt(i).toUrlValue(10) + ";";
+            }
+            return coordStr;
+        }
+        $('button#save-fiber-modification').click(function() {
+            var polyLine = ikwen.polylines[ikwen.index];
+            var path = ikwen.polylines[ikwen.index].getPath();
+            var lineCoords = getlinePath(),
+                line = $(this).attr('fiberid'),
+                lineDistance = calculateDistance(path);
+            $(this).removeClass('update-mode').hide();
+            polyLine.setOptions({strokeColor: '#000000', editable: false});
+            saveLinePath(line, lineCoords, lineDistance, true);
+        });
+        $('#equipment select.category').change(function (e) {
+            $('#equipment input.client_code').val('')
+            $('#equipment input.client_name').val('')
+            $('#equipment input.site_code').val('')
+            $('#equipment .client').fadeOut().hide()
+            if($(this).val() === 3 || $(this).val() === 19 || $(this).val() === 21){
+                $('#equipment .client').fadeIn().show()
+            }
+        })
+    })()
+
+</script>
+<script type="application/javascript">
+    [].slice.call(document.querySelectorAll('.dropdown .nav-link')).forEach(function(el){
+        el.addEventListener('click', onClick, false);
+    });
+
+    function onClick(e){
+        e.preventDefault();
+        var el = this.parentNode;
+        el.classList.contains('show-submenu') ? hideSubMenu(el) : showSubMenu(el);
+    }
+
+    function showSubMenu(el){
+        el.classList.add('show-submenu');
+        document.addEventListener('click', function onDocClick(e){
+{#            e.preventDefault();#}
+            if(el.contains(e.target)){
+                return;
+            }
+            document.removeEventListener('click', onDocClick);
+            hideSubMenu(el);
+        });
+    }
+
+    function hideSubMenu(el){
+        el.classList.remove('show-submenu');
+    }
+
+    function animateCircle(line) {
+        var count = 0, times = 0,
+            intervalId = setInterval(function() {
+                count = (count + 1) % 200;
+                if (times >= 450) clearInterval(intervalId);
+                times ++;
+                var icons = line.get('icons');
+                icons[0].offset = (count / 2) + '%';
+                line.set('icons', icons);
+            }, 20);
+    }
+    function createInfoWindow(poly, content) {
+        google.maps.event.addListener(poly, 'click', function(event) {
+            infowindow.content = content;
+            infowindow.position = event.latLng;
+            infowindow.open(map);
+        });
+    }
+    function DeleteMenu() {
+        this.div_ = document.createElement('div');
+        this.div_.className = 'delete-menu';
+        this.div_.innerHTML = 'Delete';
+
+        var menu = this;
+        google.maps.event.addDomListener(this.div_, 'click', function() {
+          menu.removeVertex();
+        });
+    }
+
+    DeleteMenu.prototype.onAdd = function() {
+        var deleteMenu = this;
+        var map = this.getMap();
+        this.getPanes().floatPane.appendChild(this.div_);
+
+        // mousedown anywhere on the map except on the menu div will close the
+        // menu.
+        this.divListener_ = google.maps.event.addDomListener(map.getDiv(), 'mousedown', function(e) {
+            if (e.target != deleteMenu.div_) {
+                deleteMenu.close();
+            }
+        }, true);
+    };
+    DeleteMenu.prototype.onRemove = function() {
+        google.maps.event.removeListener(this.divListener_);
+        this.div_.parentNode.removeChild(this.div_);
+
+        // clean up
+        this.set('position');
+        this.set('path');
+        this.set('vertex');
+    };
+
+    DeleteMenu.prototype.close = function() {
+        this.setMap(null);
+    };
+
+    DeleteMenu.prototype.draw = function() {
+        var position = this.get('position');
+        var projection = this.getProjection();
+
+        if (!position || !projection) {
+          return;
+        }
+        var point = projection.fromLatLngToDivPixel(position);
+        this.div_.style.top = point.y + 'px';
+        this.div_.style.left = point.x + 'px';
+    };
+    /**
+       * Opens the menu at a vertex of a given path.
+       */
+    DeleteMenu.prototype.open = function(map, path, vertex) {
+        this.set('position', path.getAt(vertex));
+        this.set('path', path);
+        this.set('vertex', vertex);
+        this.setMap(map);
+        this.draw();
+    };
+/**
+       * Deletes the vertex from the path.
+       */
+    DeleteMenu.prototype.removeVertex = function() {
+        var path = this.get('path');
+        var vertex = this.get('vertex');
+
+        if (!path || vertex == undefined) {
+          this.close();
+          return;
+        }
+
+        path.removeAt(vertex);
+        this.close();
+    };
+
+</script>

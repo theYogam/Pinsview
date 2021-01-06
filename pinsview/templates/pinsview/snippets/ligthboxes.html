@@ -1,0 +1,232 @@
+{% load i18n static %}
+ <div id="lightbox" class="ik-hdn">
+{#    <div id="close">X</div>#}
+    <div class="wrapper">
+        <div class="dialog has-shade new-event ik-hdn" style="border-radius: 5px;margin-top: 5%;max-width: 400px;">
+            <h2 style=""  class="modal-title">{% trans "Add a new event" %}</h2>
+            <div class="stage">
+                <form role="form" id="event" style="margin-bottom: 10px;clear: both">{% csrf_token %}
+                    <input type="hidden" name="name" value="">
+                    <input type="hidden" id="asset-id" name="asset-id" value="">
+                    <div class="form-group">
+                        <label for="type" style="font-size: 12px; font-weight: 700;">Type</label>
+                        <select class="form-control log-type input-sm" name="category" style="font-size: 12px;">
+                            <option value="">{% trans 'Select a type' %}</option>
+                            {% for event_type in event_types %}
+                                <option value="{{ event_type.id }}">{{ event_type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="" style="font-size: 12px; font-weight: 700;width: 100%">{% trans "Name" %}</label>
+                        <input type="text" class="name form-control input-sm" name="name">
+                    </div>
+{#                    <div class="form-group input-group">#}
+{#                        <label for="" style="font-size: 12px; font-weight: 700;width: 100%">{% trans "Amount" %}</label>#}
+{#                        <input type="text" class="measure form-control input-sm" name="mesure" style="width: 360px">#}
+{#                    </div>#}
+
+                    <div class="form-group">
+                        <label for="type" style="font-weight: 700;font-size: 12px">{% trans "Details" %}</label>
+                        <textarea rows="4" class="details input-sm form-control" cols="5" name="description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" class="btn btn-sm btn-default cancel col-sm-5 col-xs-12" onclick="$(this).parents('.dialog').hide()">{% trans 'Cancel' %}</button>
+                        <button type="submit" id="save-event" class="btn btn-sm btn-success submit col-sm-offset-2 col-sm-5 col-xs-12">{% trans 'Submit' %}</button>
+                    </div>
+                </form>
+                <div class="clear"></div>
+            </div>
+        </div>
+        <div class="modal dialog event-summary ik-hdn row">
+            <div class="close" style="float: right; margin-right: 10px; position: relative">X</div>
+            <h2 style=""  class="modal-title">{% trans 'Take a look on event details' %}</h2>
+            <div class="asset">
+                <strong>{% trans "Asset" %}</strong>:
+                <span></span>
+            </div>
+            <div class="title">
+                <strong>{% trans "Title" %}</strong>:
+                <span></span>
+            </div>
+            <div class="type">
+                <strong>{% trans "Type" %}</strong>:
+                <span></span>
+            </div>
+{#            <div class="measure">#}
+{#                <strong>{% trans "Event_type_label" %}</strong>:#}
+{#                <span></span>#}
+{#            </div>#}
+            <div class="details">
+                <strong>{% trans "Details" %}</strong>:
+                <span></span>
+            </div>
+            <div class="techie">
+                <strong>{% trans "Agent" %}</strong>:
+                <span></span>
+            </div>
+            <div class="created">
+                <strong>{% trans "Date" %}</strong>:
+                <span></span>
+            </div>
+        </div>
+
+        <div class="dialog has-shade notification ik-hdn" id="offline-asset" style="border: solid 1px #f10002; margin-top: 3%; max-height: 750px; overflow-x: hidden; overflow-y: auto;width: 800px;">
+            <div class="header subtle-shade">
+                <div class="close" style="float: right; margin-right: 10px; position: relative">X</div>
+                <h2 style=""  class="modal-title">{% trans "Equipments down" %}</h2>
+                <div class="filter">
+                    <div id="docsis" class="modems">
+                        <h6>DOCSIS: </h6>
+                        <div class="result">
+                            <span class="offline"></span>
+                            <span> / </span>
+                            <span class="total"></span>
+                        </div>
+                    </div>
+                    <div id="pon" class="modems">
+                        <h6>PON: </h6>
+                        <div class="result">
+                            <span class="offline"></span>
+                            <span> / </span>
+                            <span class="total"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="filter">
+                    <select>
+                        <option value="all">{% trans 'All' %}</option>
+                        {% for city in cities %}
+                            <option value="{{ city.name }}">{{ city.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="stage" style="padding: 10px 10px 6px; overflow-y: auto">
+                <table class="table table-striped table-bordered" id="offline-pins" style="">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">{% trans 'Equipments' %}</th>
+                            <th scope="col">{% trans 'City - Zone' %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="tpl" data-city="">
+                            <th scope="row" class="counter" style="width: 50px"></th>
+                            <td  data-pkey="" data-lat="" data-lng="" data-lng="" data-icon="" data-city="" class="pin-name"></td>
+                            <td class="location" style="width: 200px"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="clear"></div>
+            </div>
+        </div>
+
+        <div class="dialog has-shade new-config ik-hdn" style="border-radius: 5px;margin-top: 5%; max-width: 600px; padding: 20px">
+            <h2  class="modal-title header h2">{% trans "Pin configurations" %}</h2>
+            <div class="stage" style="padding: 10px 10px 6px">
+                <form role="form" id="configs" style="margin-bottom: 10px;clear: both">{% csrf_token %}
+                    <div id="configs-content" style="max-height: 65vh; overflow-y: auto">
+                        <input type="hidden" name="name" value="">
+                        <input type="hidden" id="asset-id" name="asset-id" value="">
+
+                        <div class="form-group row tpl custom-config">
+                            <div class="col-sm-5 col-md-5" style="padding: 0">
+                                <input class="form-control input-sm title" type="text" placeholder="{% trans "Label" %}" />
+                            </div>
+                            <div class="col-sm-6 col-md-6" style="padding-right: 0">
+                                <input class="form-control input-sm config-val" type="text" placeholder="{% trans "Configuration value" %}" />
+                            </div>
+                            <div class="col-sm-1 col-md-1">
+                                <i class="btn-icon remove-config fa fa-minus text-danger" style="font-size: 22px; line-height: 25px"></i>
+                            </div>
+                        </div>
+                        <div class="form-group row custom-config first">
+                            <div class="col-sm-5 col-md-5" style="padding: 0">
+                                <input class="form-control input-sm title" type="text" name="item0" placeholder="{% trans "Label" %}" />
+                            </div>
+                            <div class="col-sm-6 col-md-6" style="padding-right: 0">
+                                <input class="form-control input-sm config-val" type="text" name="config0" placeholder="{% trans "Configuration value" %}" />
+                            </div>
+                            <div class="col-sm-1 col-md-1">
+                                <i class="btn-icon add-config fa fa-plus text-success" style="font-size: 22px; line-height: 25px"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group action" style="clear: both">
+                        <button type="button" class="btn btn-sm btn-default col-sm-5 cancel " onclick="$(this).parents('.dialog').hide()">{% trans 'Cancel' %}</button>
+                        <button type="submit" id="save-config" class="btn btn-sm btn-success col-sm-offset-2 col-sm-5 ">{% trans 'Submit' %}</button>
+                    </div>
+                </form>
+                <div class="clear"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{# Modal declaration : BEGIN #}
+    <div class="modal fade has-shade new-pin ik-hdn" id="modal-new-pin" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content modal-info">
+                <h2 class="modal-title">{% trans "Add a new pin" %}</h2>
+                <div class="modal-body">
+                    <form onclick="return false">
+                        <input type="hidden" id="new-pin-lng" >
+                        <input type="hidden" id="new-pin-lat">
+                        <input type="hidden" id="new-pin-formatted-address">
+                        <div class="form-group">
+                            <label for="type" style="font-size: 12px; font-weight: 700;">{% trans 'Type' %}</label>
+                            <select class="form-control input-sm category" id="new-pin-category" style="font-size: 12px;">
+                                <option value="">{% trans 'Select a type' %}</option>
+                                {% for category in pin_categories %}
+                                    <option value="{{ category.id }}">{{ category.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="" style="font-size: 12px; font-weight: 700;">{% trans 'Name' %}</label>
+                            <input type="text" class="name form-control input-sm" id="new-pin-name" placeholder="{% trans 'Name' %}">
+                        </div>
+                        <div class="form-group" style="clear: both;margin-top: 22px;width: 100%;">
+                            <label for="type" style="font-weight: 700;font-size: 12px">{% trans 'Description' %}</label>
+                            <textarea rows="4" class="desc form-control" id="new-pin-desc" cols="5" style="font-size: 12px; resize: none;"></textarea>
+                        </div>
+                        <div class="actions" style="clear: both">
+                            <button type="button" id="save-pin" class="btn btn-success btn-sm pull-right col-sm-offset-2 col-sm-5 col-xs-12" data-dismiss="modal" aria-label="Submit">{% trans 'Submit' %}</button>
+                            <button type="button" class="btn btn-sm cancel btn-default pull-right col-sm-5 col-xs-12" data-dismiss="modal" aria-label="Close">{% trans 'Cancel' %}</button>
+                        </div>
+                    </form>
+                    <div class="clearfix"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{#    Modal declaration : END #}
+
+{# Modal declaration : BEGIN #}
+    <div class="modal fade has-shade new-coordinate ik-hdn" id="modal-new-coordinates" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content modal-info">
+                <h2 style="" class="modal-title">{% trans "New coordinates" %}</h2>
+                <div class="modal-body">
+                    <form>
+                        <div class="form-group">
+                            <label for="latlongclicked" class="sr-only">Latitude;Longitude</label>
+                            <input id='latlongclicked' type="text" class="form-control input-sm" placeholder="Latitude;Longitude" style="border-radius: 2px;color:#343943;">
+                        </div>
+                        <div class='actions controls' style="float: right; padding-top: 25px; width: 100%">
+                            <button class="btn btn-sm cancel btn-default pull-right col-sm-5 col-xs-12" data-dismiss="modal" aria-label="Close">{% trans 'Cancel' %}</button>
+                            <button class="btn validate btn-success btn-sm pull-right submit col-sm-offset-2  col-sm-5 col-xs-12" aria-label="Submit">{% trans 'Submit' %}</button>
+                        </div>
+                    </form>
+
+                    <div class="clearfix"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{#    Modal declaration : END #}

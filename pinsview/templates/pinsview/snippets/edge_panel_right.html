@@ -1,0 +1,33 @@
+ {% load i18n humanize static cache %}
+<div id="asset-details" class="edge-panel-right always-docked">
+    <div class="wrapper" style="padding: 0 10px">
+        <div class="stage">
+            <div class="top-edge-panel" style="border-bottom: none">
+                <div class="panel-top" style="">
+                    <div id="brand">
+                        <div class="logo">
+                            <h2 id="asset-name"></h2>
+                            <h3 class="text-muted" style="font-size: 18px; margin-top: 20px; color: #555">{% trans "History" %}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="filters" id="filtered">
+                <div class="event-list" style="margin:25px auto;">
+                    <ul class="asset-event-list">
+                        <li class="event see-event-detail tpl">
+                            <span class="type" style="font-weight: 600"></span>
+                            <span class="created"></span>
+                            <span class="title"></span>
+                            <span class="summary"></span>
+                        </li>
+                    </ul>
+                    <div class="clearfix"></div>
+                </div>
+                <div>
+                    <button class="btn add-event btn-success btn-sm" style="font-weight: 700; width: 100%">{% trans "Add event" %}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

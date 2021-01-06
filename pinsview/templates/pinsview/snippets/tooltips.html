@@ -1,0 +1,57 @@
+{% load i18n humanize staticfiles cache %}
+<div id='' class="tooltip-html-text asset tpl">
+     <div class="spinner"></div>
+    <h4></h4>
+    <div class="client">
+        <div class="code" style="text-align: center"></div>
+        <div class="client-name"></div>
+    </div>
+    <div class="stage">
+        <div class="slider">
+            <div class="photo"></div>
+        </div>
+    </div>
+    <div class="desc">
+        <p>{% trans 'A much detailed description goes here ...' %}</p>
+    </div>
+    <div style="clear: both;">
+        <div>
+            <span class="admin"><a href="{{ admin_url }}" target="_blank">{% trans 'View in admin' %}</a></span>
+{#                    <span class="reload" style="float: right;"><a href="#" pinid=""><img width="20" src="{% static 'council/img/refresh-grey-512.png' %}" title="reload this fiber"></a></span>#}
+        </div>
+        <span class="open-right-panel"  style="float: right; padding-right: 12px;  margin-right: 15px;"><a title="{% trans "View history" %}"><i class="fa fa-list" style="font-size: 22px; position: absolute"></i></a></span>
+        <span class="open-config-modal"  style="float: right; padding-right: 12px;  margin-right: 15px;"><a title="{% trans "View or edit pin configuration" %}"><i class="fa fa-gear" style="font-size: 22px; position: absolute"></i></a></span>
+{#         <span class="view-img"><a href="{% get_media_prefix %}{{  }}">{% trans 'View image' %}</a></span>#}
+        <span class="created cleared"><b> {% trans 'Created on:' %} </b> <span class="resp"></span></span>
+        <div class="clearfix"></div>
+        <span class="agent cleared" style="margin-top: 5px"><b>{% trans 'Agent:' %} </b> <span class="resp"></span></span>
+    </div>
+</div>
+<div class="fiber-tooltip-html-text asset tpl">
+    <h4></h4>
+    <div class="description" style="float: left; width: 250px">
+        <span class=""></span>
+    </div>
+    <div style="clear: both; float: left">
+        <span class="admin" style="margin-left: 0"><a href="{{ admin_url }}" target="_blank">{% trans 'View in admin' %}</a></span>
+    </div>
+    <div class="edit-lnk" style="float: right;margin-top: -10px">
+        <span class="admin" style=""><a href="#" target="_blank" fiberid="">Edit this fiber</a></span>
+        <span class="reload" style=""><a href="#" fiberid=""><img width="20" src="{% static 'pinsview/img/refresh-grey-512.png' %}" title="reload this fiber"></a></span>
+    </div>
+    <div class="created-on" style="clear: both">
+        <b>Plot on:</b>
+        <span class=""></span>
+    </div>
+    <div class="techie">
+        <b>Techie:</b>
+        <span class=""></span>
+    </div>
+    <div class="distance">
+        <b style=""></b>
+        <span class=""></span>
+        <em style="">Meters</em>
+    </div>
+    <span class="edit-fiber"><a title="{% trans "Edit this fiber" %}"><i class="fa fa-edit" style="float: right; margin-right: 30px; margin-top: -22px; font-size: 22px;padding-right: 12px"></i></a></span>
+    <span class="open-right-panel"><a title="{% trans "View history" %}"><i class="fa fa-list" style="float: right; margin-right: 0; margin-top: -22px; font-size: 22px;padding-right: 12px"></i></a></span>
+</div>

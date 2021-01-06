@@ -1,0 +1,89 @@
+{% load i18n static %}
+
+<div id="toolbox">
+    <div>
+        <div class="coords subtle-shade hidden-sm hidden-xs">
+            <div class="lat coord" style="margin-left: 4px">
+                <strong>Lat:</strong>
+                <span id="latspan" style="margin-left: 2px">0.0000</span>
+            </div>
+            <div class="lng coord">
+                <strong>Lng:</strong>
+                <span id="lngspan" style="margin-left: 2px">0.0000</span>
+            </div>
+        </div>
+        <div class="action add-coords subtle-shade">
+            <span id='add-coords' class="fa fa-plus" title="{% trans "Add new coordinates" %}"></span>
+        </div>
+{#        <div class="action live-drawing subtle-shade hidden-sm">#}
+{#            <span id='live-drawing' class="fa fa-magic" title="{% trans "Live drawing" %}"></span>#}
+{#        </div>#}
+{##}
+{#        <div class="action erase subtle-shade hidden-sm">#}
+{#            <span id='erase' class="fa fa-eraser" title="{% trans "Clear the map" %}"></span>#}
+{#        </div>#}
+        <div class="action measure-line subtle-shade hidden-sm hidden-xs">
+            <span id='measure-line' class="fa fa-arrows-h" title="{% trans "Measure" %}"></span>
+        </div>
+{#        <div class="action notifications subtle-shade hidden-sm">#}
+{#            <span id='notifications' class="fa fa-bell" title="{% trans "View notifications" %}"><span class="badge"></span></span>#}
+{#        </div>#}
+        <div class="action view-all-equipments subtle-shade hidden-sm ik-hdn">
+            <span id='view-all-equipments' class="fa fa-map-pin" title="{% trans "View all Equipment back" %}"></span>
+        </div>
+        <div class="action back-to-equipment subtle-shade hidden-sm ik-hdn">
+            <span id='back-to-equipment' class="fa fa-street-view" title="{% trans "View all Equipment back" %}"></span>
+        </div>
+    </div>
+    <div class="measure subtle-shade ik-hdn" id="current-polyline-length" style="background-color: #fff; color: #2cab2c; padding: 5px; position: fixed; right: 115px; top: 10px;z-index: 10">0.00 Meter</div>
+
+    <div id="ld-tools-content" class="hidden-sm ik-hdn">
+        <div id="ld-filter" class="subtle-shade">
+{#            <div class="header">#}
+{#                <h5>{% trans "Live drawing" %}</h5>#}
+{#                <span class="glyphicon glyphicon-triangle-bottom"></span>#}
+{#            </div>#}
+{#            <section class="equipments" style="margin-top: 10px; ">#}
+{#                <div class="details">#}
+{#                    <ul>#}
+{#                        <li id="back-to-equipment">#}
+{#                             <a href="#" class="criterion">{% trans "View equipments" %}</a>#}
+{#                        </li>#}
+{#                    </ul>#}
+{#                </div>#}
+{#            </section>#}
+            <section id="line-search" class="hidden-xs" style="border-bottom: transparent; padding-bottom: 5px">
+                <form role="form" id="line-search" style="clear: both; margin-left: 15px; margin-top: 5px">
+                    <div class="form-group">
+                         <label for="type" style="cursor: default; font-size: 12px">{% trans "Select a line" %}</label>
+                         <input type="text" id="line-keyword" style="border-radius: 4px;font-size: 12px; width: 90%" placeholder="{% trans "Search a line" %}">
+                         <input type="hidden">
+                         <div id="suggestions-for-lines" style=""></div>
+                    </div>
+                    <div class="form-group ik-hdn">
+                        <label for="type">Real Coords</label>
+                        <textarea id="latlngBrutes" readonly="readonly"></textarea>
+                    </div>
+                    <div class="form-group ik-hdn">
+                        <label for="type hidden">Encoded coords</label>
+                        <textarea id="latlngEncodees" readonly="readonly"></textarea>
+                    </div>
+                    <div class="form-group" style="clear: both">
+                         <button class="btn validate btn-success btn-sm" style="font-weight: 700; font-size: 12px; width: 169px;">{% trans "Submit" %}</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+        <div class="ld-toolbox" style="position: fixed; right:75px ; top:9px; z-index: 50">
+            <div class="action subtle-shade" style="padding: 0">
+                <button id='done' class="btn validate btn-success btn-sm" style="font-weight: 700; font-size: 12px;width: 90px;" title="Confirm">{% trans "Done" %}</button>
+             </div>
+        </div>
+    </div>
+    <div class="ld-toolbox" id="ld-toolbox" style="position: fixed; right:15px ; top:100px; z-index: 50">
+        <div class="action subtle-shade" style="border-radius: 5px;height: 96px; width: 179px;padding: 0">
+            <button id='update-done' class="btn validate btn-success btn-sm" style="font-weight: 700; font-size: 12px; margin: 12px;width: 150px;" title="Confirm">{% trans "Confirm line update" %}</button>
+            <button id='cancel-update' class="btn validate btn-cancel btn-sm" style="font-weight: 700; font-size: 12px; margin-left: 12px;width: 150px;" title="Cancel">{% trans "Cancel update" %}</button>
+         </div>
+    </div>
+</div>
